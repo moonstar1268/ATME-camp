@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}AFE 캠프 산출물 관리 시스템{% endblock %}
+{% block body_class %}landing-page{% endblock %}
+
+{% block content %}
+  <section class="hero-grid">
+    <div class="hero-card">
+      <p class="eyebrow">AFE CAMP PLATFORM</p>
+      <h1>AFE 캠프 산출물 관리 시스템</h1>
+      <p class="hero-copy">
+        학생이 작성한 산출물과 면담 정보를 강사가 검토하고, 관리자가 최종 취합 및
+        Excel 다운로드까지 수행할 수 있는 통합 관리 웹앱입니다.
+      </p>
+
+      <div class="hero-list">
+        <article class="hero-list-item">
+          <span>01</span>
+          <div>
+            <h2>관리자</h2>
+            <p>강사 등록, 프로그램 유형 관리, 프로그램 개설, 최종 검토와 다운로드</p>
+          </div>
+        </article>
+        <article class="hero-list-item">
+          <span>02</span>
+          <div>
+            <h2>강사</h2>
+            <p>배정된 프로그램 목록 확인, 학생 응답 검토, 평가 작성, 최종 제출</p>
+          </div>
+        </article>
+        <article class="hero-list-item">
+          <span>03</span>
+          <div>
+            <h2>학생</h2>
+            <p>회원가입 없이 프로그램 코드로 입장해 질문지 응답을 작성하고 제출</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="info-card">
+        <h3>초기 테스트 정보</h3>
+        <ul class="clean-list">
+          <li>관리자 ID: <strong>admin</strong></li>
+          <li>관리자 PW: <strong>afe1234!</strong></li>
+          <li>샘플 강사 코드: <strong>TCHR2026</strong></li>
+          <li>샘플 학생용 프로그램 코드: <strong>20261001</strong></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-heading">
+        <p class="eyebrow">ENTRY PORTAL</p>
+        <h2>역할을 선택해 시작하세요</h2>
+        <p>관리자는 ID/PW로, 강사와 학생은 접속 코드로 진입합니다.</p>
+      </div>
+
+      {% if error %}
+        <div class="flash flash-error">{{ error }}</div>
+      {% endif %}
+
+      <div class="tabs" data-tabs>
+        <div class="tab-list" role="tablist" aria-label="역할 선택">
+          <button class="tab-button {% if active_role == 'admin' %}is-active{% endif %}" type="button" data-tab-target="admin">관리자</button>
+          <button class="tab-button {% if active_role == 'student' %}is-active{% endif %}" type="button" data-tab-target="student">학생</button>
+          <button class="tab-button {% if active_role == 'teacher' %}is-active{% endif %}" type="button" data-tab-target="teacher">강사</button>
+        </div>
+
+        <div class="tab-panel {% if active_role == 'admin' %}is-active{% endif %}" data-tab-panel="admin">
+          <div class="panel-chip admin">관리자 로그인</div>
+          <form action="/login/admin" method="post" class="stack-form">
+            <label>
+              <span>ID</span>
+              <input type="text" name="username" placeholder="관리자 ID" required />
+            </label>
+            <label>
+              <span>PW</span>
+              <input type="password" name="password" placeholder="비밀번호" required />
+            </label>
+            <button type="submit" class="primary-button admin">관리자 화면으로 이동</button>
+          </form>
+        </div>
+
+        <div class="tab-panel {% if active_role == 'student' %}is-active{% endif %}" data-tab-panel="student">
+          <div class="panel-chip student">학생 코드 로그인</div>
+          <form action="/login/student" method="post" class="stack-form">
+            <label>
+              <span>프로그램 코드</span>
+              <input type="text" name="program_code" placeholder="8자리 프로그램 코드" maxlength="8" inputmode="numeric" required />
+            </label>
+            <p class="form-hint">회원가입 없이 강사에게 전달받은 프로그램 코드로 바로 입장합니다.</p>
+            <button type="submit" class="primary-button student">학생 질문지로 이동</button>
+          </form>
+        </div>
+
+        <div class="tab-panel {% if active_role == 'teacher' %}is-active{% endif %}" data-tab-panel="teacher">
+          <div class="panel-chip teacher">강사 코드 로그인</div>
+          <form action="/login/teacher" method="post" class="stack-form">
+            <label>
+              <span>강사 접속 코드</span>
+              <input type="text" name="access_code" placeholder="예: TCHR2026" maxlength="16" required />
+            </label>
+            <p class="form-hint">관리자가 배정한 강사 접속 코드로 로그인하고 프로그램 목록을 확인합니다.</p>
+            <button type="submit" class="primary-button teacher">강사 화면으로 이동</button>
+          </form>
+        </div>
+      </div>
+
+      {% if current_admin or current_teacher or current_program %}
+        <div class="session-banner">
+          <div>
+            <p class="session-kicker">현재 로그인 상태</p>
+            {% if current_admin %}
+              <h3>{{ current_admin.display_name }} 계정으로 로그인 중입니다.</h3>
+              <p>현재 세션은 유지되고 있으며, 로그아웃 버튼을 누르기 전까지 해제되지 않습니다.</p>
+            {% endif %}
+            {% if current_teacher %}
+              <h3>{{ current_teacher.name }} 강사 계정으로 로그인 중입니다.</h3>
+              <p>브랜드를 눌러도 강사 대시보드로 돌아가며 세션은 계속 유지됩니다.</p>
+            {% endif %}
+            {% if current_program %}
+              <h3>{{ current_program.title }} 프로그램의 학생 세션이 열려 있습니다.</h3>
+              <p>학생 작성 화면으로 바로 복귀할 수 있고, 로그아웃 전까지 세션이 유지됩니다.</p>
+            {% endif %}
+          </div>
+          <div class="session-actions">
+            {% if current_admin %}
+              <a href="/admin" class="secondary-button">관리자 화면으로 돌아가기</a>
+            {% endif %}
+            {% if current_teacher %}
+              <a href="/teacher" class="secondary-button">강사 화면으로 돌아가기</a>
+            {% endif %}
+            {% if current_program %}
+              <a href="/student" class="secondary-button">학생 화면으로 돌아가기</a>
+            {% endif %}
+            <a href="/logout" class="ghost-link">로그아웃</a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

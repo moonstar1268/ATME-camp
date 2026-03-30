@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}AFE 캠프 산출물 관리 시스템{% endblock %}</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body class="{% block body_class %}{% endblock %}">
+    <div class="app-shell">
+      <header class="topbar">
+        <a
+          href="{% if request.session and request.session.role == 'admin' %}/admin{% elif request.session and request.session.role == 'teacher' %}/teacher{% elif request.session and request.session.role == 'student' %}/student{% else %}/{% endif %}"
+          class="brand"
+        >
+          <span class="brand-kicker">AFE CAMP</span>
+          <strong>산출물 관리 시스템</strong>
+        </a>
+
+        <nav class="topbar-nav">
+          {% if request.session and request.session.role == "admin" %}
+            <a href="/admin">관리자 대시보드</a>
+          {% elif request.session and request.session.role == "teacher" %}
+            <a href="/teacher">강사 대시보드</a>
+          {% elif request.session and request.session.role == "student" %}
+            <a href="/student">학생 작성 화면</a>
+          {% endif %}
+
+          {% if request.session %}
+            <a href="/logout" class="ghost-link">로그아웃</a>
+          {% else %}
+            <a href="/" class="ghost-link">첫 페이지</a>
+          {% endif %}
+        </nav>
+      </header>
+
+      {% if flash %}
+        <div class="flash flash-{{ flash.tone }}">{{ flash.message }}</div>
+      {% endif %}
+
+      <main class="page-content">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

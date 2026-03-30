@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}강사 대시보드 | AFE{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <p class="eyebrow">TEACHER DASHBOARD</p>
+      <h1>{{ teacher.name }} 강사님, 반갑습니다.</h1>
+      <p>배정된 프로그램의 학생 제출 현황을 확인하고 평가를 작성할 수 있습니다.</p>
+      {% if teacher.academic_info %}
+        <p class="detail-note prewrap-text">{{ teacher.academic_info }}</p>
+      {% endif %}
+    </div>
+    <div class="header-actions">
+      <div class="code-pill">강사 접속 코드 {{ teacher.access_code }}</div>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span>배정된 프로그램</span>
+      <strong>{{ metrics.assigned_programs }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>학생 입력 진행 중</span>
+      <strong>{{ metrics.open_programs }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>강사 제출 완료</span>
+      <strong>{{ metrics.teacher_submitted }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>학생 제출 누적</span>
+      <strong>{{ metrics.student_submissions }}</strong>
+    </article>
+  </section>
+
+  <section class="surface-card">
+    <div class="section-title">
+      <h2>배정 프로그램 목록</h2>
+      <p>프로그램을 선택하면 학생 응답을 검토하고 평가를 작성할 수 있습니다.</p>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>프로그램명</th>
+            <th>학교/교급</th>
+            <th>학년도/학기</th>
+            <th>학생용 코드</th>
+            <th>학생 제출 수</th>
+            <th>상태</th>
+            <th>바로가기</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for program in programs %}
+            <tr>
+              <td>{{ program.title }}</td>
+              <td>{{ program.school_name }} / {{ program.school_level }}</td>
+              <td>{{ program.year }} / {{ program.semester }}</td>
+              <td><code>{{ program.program_code }}</code></td>
+              <td>{{ program.submission_count }}</td>
+              <td><span class="status-badge">{{ status_label(program.status, "program") }}</span></td>
+              <td><a href="/teacher/programs/{{ program.id }}">면담지 확인</a></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7">현재 배정된 프로그램이 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}
