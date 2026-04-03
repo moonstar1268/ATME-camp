@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>teacher preview</title>
+  </head>
+  <body>
+    <form id="preview-form" action="http://127.0.0.1:8000/login/teacher" method="post">
+      <input type="hidden" name="access_code" value="TCHR2026" />
+    </form>
+    <script>
+      window.addEventListener("load", () => {
+        document.getElementById("preview-form").submit();
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}AFE 캠프 산출물 관리 시스템{% endblock %}
+{% block body_class %}landing-page{% endblock %}
+
+{% block content %}
+  <section class="hero-grid">
+    <div class="hero-card">
+      <p class="eyebrow">AFE CAMP PLATFORM</p>
+      <h1>AFE 캠프 산출물 관리 시스템</h1>
+      <p class="hero-copy">
+        학생은 코드로 질문지를 작성하고, 강사는 아이디와 비밀번호로 배정 프로그램을 검토하며,
+        관리자는 별도 운영 페이지에서 캠프 개설과 결과물 관리를 진행합니다.
+      </p>
+
+      <div class="hero-list">
+        <article class="hero-list-item">
+          <span>01</span>
+          <div>
+            <h2>학생</h2>
+            <p>프로그램 코드로 접속해 기본 정보와 프로그램별 질문지를 작성하고 제출합니다.</p>
+          </div>
+        </article>
+        <article class="hero-list-item">
+          <span>02</span>
+          <div>
+            <h2>강사</h2>
+            <p>아이디와 비밀번호로 로그인해 배정 프로그램 목록을 확인하고 학생 면담지를 검토합니다.</p>
+          </div>
+        </article>
+        <article class="hero-list-item">
+          <span>03</span>
+          <div>
+            <h2>관리자</h2>
+            <p>관리자는 별도 운영 페이지에서 강사 관리, 캠프 개설, 결과물 관리, 프로그램 유형 관리를 수행합니다.</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="info-card">
+        <h3>운영 안내</h3>
+        <ul class="clean-list">
+          <li>관리자 전용 페이지: <strong>/admin/login</strong></li>
+          <li>학생은 회원가입 없이 프로그램 코드로 접속합니다.</li>
+          <li>강사 계정은 관리자 모드에서 자동 생성 및 배정됩니다.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="panel-heading">
+        <p class="eyebrow">ENTRY PORTAL</p>
+        <h2>학생과 강사는 여기서 시작합니다</h2>
+        <p>학생은 프로그램 코드로, 강사는 관리자에게 전달받은 아이디와 비밀번호로 로그인합니다.</p>
+      </div>
+
+      {% if error %}
+        <div class="flash flash-error">{{ error }}</div>
+      {% endif %}
+
+      <div class="tabs" data-tabs>
+        <div class="tab-list" role="tablist" aria-label="역할 선택">
+          <button class="tab-button {% if active_role == 'student' %}is-active{% endif %}" type="button" data-tab-target="student">학생</button>
+          <button class="tab-button {% if active_role == 'teacher' %}is-active{% endif %}" type="button" data-tab-target="teacher">강사</button>
+        </div>
+
+        <div class="tab-panel {% if active_role == 'student' %}is-active{% endif %}" data-tab-panel="student">
+          <div class="panel-chip student">학생 코드 로그인</div>
+          <form action="/login/student" method="post" class="stack-form">
+            <label>
+              <span>프로그램 코드</span>
+              <input type="text" name="program_code" placeholder="예: AFE26X9Q1K" maxlength="12" autocomplete="off" required />
+            </label>
+            <p class="form-hint">강사 또는 운영진에게 전달받은 프로그램 코드로 바로 질문지에 입장합니다.</p>
+            <button type="submit" class="primary-button student">학생 질문지로 이동</button>
+          </form>
+
+          {% if current_program %}
+            <div class="surface-subcard compact-top">
+              <strong>현재 로그인된 프로그램</strong>
+              <p>{{ current_program.title }} · {{ current_program.school_name }} · {{ current_program.teacher_name }}</p>
+              <a href="/student" class="ghost-link">작성 화면으로 돌아가기</a>
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="tab-panel {% if active_role == 'teacher' %}is-active{% endif %}" data-tab-panel="teacher">
+          <div class="panel-chip teacher">강사 계정 로그인</div>
+          <form action="/login/teacher" method="post" class="stack-form">
+            <label>
+              <span>강사 아이디</span>
+              <input type="text" name="username" placeholder="관리자가 전달한 아이디" autocomplete="username" required />
+            </label>
+            <label>
+              <span>비밀번호</span>
+              <input type="password" name="password" placeholder="비밀번호" autocomplete="current-password" required />
+            </label>
+            <p class="form-hint">강사 계정은 관리자 모드에서 자동 생성됩니다.</p>
+            <button type="submit" class="primary-button teacher">강사 대시보드로 이동</button>
+          </form>
+
+          {% if current_teacher %}
+            <div class="surface-subcard compact-top">
+              <strong>현재 로그인된 강사</strong>
+              <p>{{ current_teacher.name }}{% if current_teacher.university %} · {{ current_teacher.university }}{% endif %}</p>
+              <a href="/teacher" class="ghost-link">강사 대시보드로 돌아가기</a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="admin-entry-note compact-top">
+        <span>관리자 전용 진입</span>
+        <a href="/admin/login" class="secondary-button">관리자 운영 페이지</a>
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}{{ program.title }} | 강사 검토{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <p class="eyebrow">TEACHER REVIEW</p>
+      <h1>{{ program.title }}</h1>
+      <p>{{ program.school_name }} · {{ program.school_level }} · {{ program.year }} {{ program.semester }}</p>
+    </div>
+    <div class="header-actions">
+      <div class="code-pill">학생용 코드 {{ program.program_code }}</div>
+      <a href="/teacher" class="ghost-link">목록으로</a>
+    </div>
+  </section>
+
+  {% if is_locked %}
+    <div class="flash flash-info">이 프로그램은 이미 강사 제출 또는 관리자 마감이 완료되어 읽기 전용 상태입니다.</div>
+  {% endif %}
+
+  <section class="grid-two">
+    <article class="surface-card">
+      <h2>프로그램 개요</h2>
+      <div class="meta-grid">
+        <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
+        <div><span>상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
+        <div><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
+        <div><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
+      </div>
+      {% if question_schema.report_reference %}
+        <div class="report-reference-card compact-top">
+          <p class="section-kicker">연계 보고서</p>
+          <strong>{{ question_schema.report_reference }}</strong>
+          {% if question_schema.report_summary %}
+            <p>{{ question_schema.report_summary }}</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </article>
+
+    <article class="surface-card">
+      <h2>질문지 구성</h2>
+      <div class="section-outline-list">
+        {% for section in question_schema.sections %}
+          <div class="outline-card">
+            <strong>{{ loop.index }}. {{ section.title }}</strong>
+            {% if section.description %}
+              <p>{{ section.description }}</p>
+            {% endif %}
+            <small>{{ section.fields|length }}개 문항</small>
+          </div>
+        {% endfor %}
+      </div>
+
+      {% if not is_locked %}
+        <form action="/teacher/programs/{{ program.id }}/submit" method="post" class="compact-top">
+          <button type="submit" class="primary-button teacher">강사 최종 제출</button>
+        </form>
+      {% endif %}
+    </article>
+  </section>
+
+  <section class="surface-card">
+    <div class="section-title">
+      <h2>학생 면담지 검토</h2>
+      <p>학생 답변을 확인한 뒤, GPT 기반 평가 내용 예시를 참고하여 강사 최종 평가를 마무리할 수 있습니다.</p>
+    </div>
+
+    {% if submissions %}
+      <div class="table-scroll compact-top">
+        <table>
+          <thead>
+            <tr>
+              <th>학번</th>
+              <th>이름</th>
+              <th>희망전공</th>
+              <th>학생 제출 시각</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for submission in submissions %}
+              <tr>
+                <td>{{ submission.student_number }}</td>
+                <td>{{ submission.student_name }}</td>
+                <td>{{ submission.desired_major }}</td>
+                <td>{{ format_datetime(submission.student_submitted_at) }}</td>
+                <td>{{ status_label(submission.status, "submission") }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <div class="submission-stack compact-top">
+      {% for submission in submissions %}
+        <article class="submission-card">
+          <div class="submission-header">
+            <div>
+              <h3>{{ submission.student_name }} ({{ submission.student_number }})</h3>
+              <p>희망전공: {{ submission.desired_major }}</p>
+            </div>
+            <div class="timestamps">
+              <span>학생 제출: {{ format_datetime(submission.student_submitted_at) }}</span>
+              <span>강사 최종 수정: {{ format_datetime(submission.teacher_updated_at) }}</span>
+              {% if submission.ai_generated_at %}
+                <span>AI 예시 생성: {{ format_datetime(submission.ai_generated_at) }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="answer-grid">
+            {% for answer in submission.answers %}
+              <div class="answer-card">
+                {% if answer.section_title %}
+                  <small class="answer-section-label">{{ answer.section_title }}</small>
+                {% endif %}
+                <strong>{{ answer.question }}</strong>
+                <p>{{ answer.answer }}</p>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="surface-subcard compact-top ai-suggestion-card">
+            <div class="ai-suggestion-header">
+              <div>
+                <p class="section-kicker">AI Suggestion</p>
+                <h4>평가 내용 예시</h4>
+                <p>학생 작성 내용을 기반으로 GPT 프롬프트를 거쳐 생성한 초안입니다. 그대로 제출하지 말고 강사 검토 후 수정해 주세요.</p>
+              </div>
+              <div class="ai-suggestion-actions">
+                {% if not is_locked %}
+                  <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}/ai-suggestion" method="post" class="inline-action-form">
+                    <button type="submit" class="secondary-button compact-button">
+                      {% if submission.ai_suggestion %}예시 다시 생성{% else %}평가 예시 생성{% endif %}
+                    </button>
+                  </form>
+                {% endif %}
+                {% if submission.ai_suggestion %}
+                  <button
+                    type="button"
+                    class="secondary-button compact-button"
+                    data-copy-source="ai-suggestion-{{ submission.id }}"
+                    data-copy-target="teacher-evaluation-{{ submission.id }}"
+                  >
+                    평가 내용에 넣기
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+
+            {% if submission.ai_suggestion %}
+              <div id="ai-suggestion-{{ submission.id }}" class="prewrap-text ai-suggestion-body">{{ submission.ai_suggestion }}</div>
+              {% if submission.ai_model %}
+                <p class="form-hint compact-top">생성 모델: {{ submission.ai_model }}</p>
+              {% endif %}
+            {% elif submission.ai_error %}
+              <div class="flash flash-error compact-top">{{ submission.ai_error }}</div>
+            {% elif not ai_enabled %}
+              <div class="flash flash-info compact-top">`OPENAI_API_KEY`가 설정되지 않아 평가 내용 예시를 생성하지 못했습니다.</div>
+            {% else %}
+              <div class="flash flash-info compact-top">아직 생성된 평가 내용 예시가 없습니다. 버튼을 눌러 초안을 생성할 수 있습니다.</div>
+            {% endif %}
+          </div>
+
+          <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="grid-two compact-top">
+            <label class="surface-subcard">
+              <span>강사 수정 요약</span>
+              <textarea name="teacher_summary" rows="6" placeholder="오프라인 면담 내용을 반영한 요약을 입력해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_summary }}</textarea>
+            </label>
+            <label class="surface-subcard">
+              <span>평가 내용</span>
+              <textarea id="teacher-evaluation-{{ submission.id }}" name="teacher_evaluation" rows="8" placeholder="학생 평가 내용을 입력해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_evaluation }}</textarea>
+            </label>
+            {% if not is_locked %}
+              <div class="span-two form-actions">
+                <button type="submit" class="primary-button teacher">학생 평가 저장</button>
+              </div>
+            {% endif %}
+          </form>
+        </article>
+      {% else %}
+        <div class="empty-state">
+          <h3>아직 학생 응답이 없습니다.</h3>
+          <p>학생이 프로그램 코드로 질문지를 제출하면 이 화면에서 바로 검토할 수 있습니다.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

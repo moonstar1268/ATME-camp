@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}학생 질문지 작성 | AFE{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <p class="eyebrow">STUDENT ENTRY</p>
+      <h1>{{ program.title }}</h1>
+      <p>{{ program.school_name }} · {{ program.school_level }} · {{ program.year }} {{ program.semester }}</p>
+    </div>
+    <div class="header-actions">
+      <div class="code-pill">프로그램 코드 {{ program.program_code }}</div>
+    </div>
+  </section>
+
+  {% if error %}
+    <div class="flash flash-error">{{ error }}</div>
+  {% endif %}
+
+  {% if is_locked %}
+    <div class="flash flash-info">이 프로그램은 현재 학생 입력을 받지 않는 상태입니다. 강사 또는 관리자에게 문의해 주세요.</div>
+  {% endif %}
+
+  <section class="surface-card">
+    <div class="section-title">
+      <h2>학생 질문지 작성</h2>
+      <p>프로그램 정보와 기본 정보를 확인한 뒤, 아래 섹션별 문항에 차례대로 응답해 주세요.</p>
+    </div>
+
+    <form action="/student/submit" method="post" class="stack-form compact-top">
+      <div class="surface-subcard">
+        <div class="section-title">
+          <h3>캠프 정보</h3>
+          <p>질문지 작성 화면 안에서 프로그램 핵심 정보가 바로 보이도록 구성했습니다.</p>
+        </div>
+        <div class="meta-grid compact-top">
+          <div><span>학교명</span><strong>{{ program.school_name }}</strong></div>
+          <div><span>교급</span><strong>{{ program.school_level }}</strong></div>
+          <div><span>학년도/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
+          <div><span>프로그램명</span><strong>{{ program.title }}</strong></div>
+          <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
+          <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
+        </div>
+        {% if question_schema.report_reference %}
+          <div class="report-reference-card compact-top">
+            <p class="section-kicker">연계 보고서</p>
+            <strong>{{ question_schema.report_reference }}</strong>
+            {% if question_schema.report_summary %}
+              <p>{{ question_schema.report_summary }}</p>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="surface-subcard">
+        <div class="section-title">
+          <h3>기본 정보</h3>
+          <p>학생 기본 정보는 강사 검토와 관리자 결과물 정리에 함께 활용됩니다.</p>
+        </div>
+        <div class="grid-form compact-top">
+          <label>
+            <span>학번</span>
+            <input type="text" name="student_number" value="{{ form_data.student_number }}" placeholder="예: 30101" {% if is_locked %}disabled{% endif %} required />
+          </label>
+          <label>
+            <span>이름</span>
+            <input type="text" name="student_name" value="{{ form_data.student_name }}" placeholder="이름" {% if is_locked %}disabled{% endif %} required />
+          </label>
+          <label class="span-two">
+            <span>희망전공 (학과)</span>
+            <input type="text" name="desired_major" value="{{ form_data.desired_major }}" placeholder="예: 화학공학과" {% if is_locked %}disabled{% endif %} required />
+          </label>
+        </div>
+      </div>
+
+      <div class="surface-subcard">
+        <div class="section-title">
+          <h3>질문지 구성</h3>
+          <p>프로그램 유형에 따라 질문 문항과 구조가 달라집니다.</p>
+        </div>
+        <div class="section-outline-list compact-top">
+          {% for section in question_schema.sections %}
+            <div class="outline-card">
+              <strong>{{ loop.index }}. {{ section.title }}</strong>
+              {% if section.description %}
+                <p>{{ section.description }}</p>
+              {% endif %}
+              <small>{{ section.fields|length }}개 문항</small>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% for section in question_schema.sections %}
+        <section class="question-section-card">
+          <div class="section-title">
+            <p class="section-kicker">Section {{ loop.index }}</p>
+            <h3>{{ section.title }}</h3>
+            {% if section.description %}
+              <p>{{ section.description }}</p>
+            {% endif %}
+          </div>
+          <div class="structured-fields compact-top">
+            {% for field in section.fields %}
+              <label class="surface-subcard">
+                <span>{{ field.label }}</span>
+                {% if field.hint %}
+                  <small class="form-hint">{{ field.hint }}</small>
+                {% endif %}
+                {% if field.type == "text" %}
+                  <input
+                    type="text"
+                    name="{{ field.id }}"
+                    value="{{ form_data.answers.get(field.id, '') }}"
+                    placeholder="{{ field.placeholder }}"
+                    {% if is_locked %}disabled{% endif %}
+                    {% if field.required %}required{% endif %}
+                  />
+                {% else %}
+                  <textarea
+                    name="{{ field.id }}"
+                    rows="{{ field.rows }}"
+                    placeholder="{{ field.placeholder }}"
+                    {% if is_locked %}disabled{% endif %}
+                    {% if field.required %}required{% endif %}
+                  >{{ form_data.answers.get(field.id, '') }}</textarea>
+                {% endif %}
+              </label>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+
+      <div class="form-footer-card">
+        <div>
+          <strong>제출 전 확인</strong>
+          <p>제출 후에는 강사가 면담지 검토 화면에서 내용을 확인하고 수정할 수 있습니다.</p>
+        </div>
+        <button type="submit" class="primary-button student" {% if is_locked %}disabled{% endif %}>학생 제출 완료</button>
+      </div>
+    </form>
+  </section>
+{% endblock %}

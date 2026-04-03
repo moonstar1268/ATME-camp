@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}강사 대시보드 | AFE{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <p class="eyebrow">TEACHER DASHBOARD</p>
+      <h1>{{ teacher.name }} 강사님, 반갑습니다.</h1>
+      <p>관리자 모듈과 유사한 정렬 기준으로 배정 프로그램 목록을 확인하고, 학생 면담지 검토를 진행할 수 있습니다.</p>
+    </div>
+    <div class="header-actions">
+      <div class="code-pill">강사 아이디 {{ teacher.username }}</div>
+    </div>
+  </section>
+
+  <section class="grid-two teacher-summary-grid">
+    <article class="surface-card">
+      <h2>강사 정보</h2>
+      <div class="meta-grid compact-top">
+        <div><span>강사명</span><strong>{{ teacher.name }}</strong></div>
+        <div><span>대학</span><strong>{{ teacher.university or "-" }}</strong></div>
+        <div><span>로그인 아이디</span><strong>{{ teacher.username }}</strong></div>
+        <div><span>코드명</span><strong>{{ teacher.access_code }}</strong></div>
+      </div>
+      {% if teacher.academic_info %}
+        <div class="detail-block compact-top">
+          <span>신분/학적사항</span>
+          <p class="prewrap-text">{{ teacher.academic_info }}</p>
+        </div>
+      {% endif %}
+      {% if teacher.memo %}
+        <div class="detail-block compact-top">
+          <span>관리 메모</span>
+          <p class="prewrap-text">{{ teacher.memo }}</p>
+        </div>
+      {% endif %}
+    </article>
+
+    <section class="stats-grid compact-stats">
+      <article class="stat-card">
+        <span>배정된 프로그램</span>
+        <strong>{{ metrics.assigned_programs }}</strong>
+      </article>
+      <article class="stat-card">
+        <span>학생 입력 진행 중</span>
+        <strong>{{ metrics.open_programs }}</strong>
+      </article>
+      <article class="stat-card">
+        <span>강사 제출 완료</span>
+        <strong>{{ metrics.teacher_submitted }}</strong>
+      </article>
+      <article class="stat-card">
+        <span>학생 제출 누적</span>
+        <strong>{{ metrics.student_submissions }}</strong>
+      </article>
+    </section>
+  </section>
+
+  <section class="surface-card">
+    <div class="section-title">
+      <h2>배정 프로그램 목록</h2>
+      <p>프로그램별 정렬은 관리자 결과물 관리 목록과 유사한 순서로 맞췄습니다.</p>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>코드</th>
+            <th>프로그램명</th>
+            <th>학교/교급</th>
+            <th>학년도/학기</th>
+            <th>유형</th>
+            <th>학생 제출</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for program in programs %}
+            <tr>
+              <td><code>{{ program.program_code }}</code></td>
+              <td>{{ program.title }}</td>
+              <td>{{ program.school_name }} / {{ program.school_level }}</td>
+              <td>{{ program.year }} / {{ program.semester }}</td>
+              <td>{{ program.template_name }}</td>
+              <td>{{ program.submission_count }}</td>
+              <td><span class="status-badge">{{ status_label(program.status, "program") }}</span></td>
+              <td>
+                <div class="inline-actions">
+                  <a href="/teacher/programs/{{ program.id }}">면담지 확인</a>
+                  {% if program.status == "collecting" %}
+                    <form action="/teacher/programs/{{ program.id }}/submit" method="post" class="inline-action-form">
+                      <button type="submit" class="ghost-button-inline">제출하기</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8">현재 배정된 프로그램이 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

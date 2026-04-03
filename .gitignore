@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+data/afe.db
+.chrome-headless*/
+.chrome-preview-*/
+.edge-headless-teacher/
+preview-*.png
+.venv/

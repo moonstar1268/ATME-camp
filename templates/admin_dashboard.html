@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}관리자 대시보드 | AFE{% endblock %}
+
+{% block content %}
+  <section class="page-header">
+    <div>
+      <p class="eyebrow">ADMIN DASHBOARD</p>
+      <h1>관리자 운영 대시보드</h1>
+      <p>캠프 개설, 강사 관리, 결과물 관리, 프로그램 유형 관리를 요청사항 기준으로 정리한 관리자 모듈입니다.</p>
+    </div>
+    <div class="header-actions">
+      <a href="/admin/download.xlsx" class="secondary-button">전체 Excel 다운로드</a>
+    </div>
+  </section>
+
+  <nav class="section-nav">
+    <a href="#program-create">캠프 개설</a>
+    <a href="#teacher-manage">강사 관리</a>
+    <a href="#result-manage">결과물 관리</a>
+    <a href="#template-manage">프로그램 유형 관리</a>
+  </nav>
+
+  <section class="stats-grid">
+    <article class="stat-card">
+      <span>전체 프로그램</span>
+      <strong>{{ metrics.total_programs }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>학생 입력 진행 중</span>
+      <strong>{{ metrics.open_programs }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>강사 제출 완료</span>
+      <strong>{{ metrics.teacher_submitted }}</strong>
+    </article>
+    <article class="stat-card">
+      <span>누적 학생 제출 수</span>
+      <strong>{{ metrics.total_submissions }}</strong>
+    </article>
+  </section>
+
+  <section id="program-create" class="surface-card">
+    <div class="section-title">
+      <h2>캠프 개설</h2>
+      <p>개설 입력 순서를 요청사항 기준으로 안내합니다.</p>
+    </div>
+
+    <div class="ordered-guide compact-top">
+      <div><strong>1.</strong> 교급 선택: 중학교 / 고등학교</div>
+      <div><strong>2.</strong> 학교명 입력</div>
+      <div><strong>3.</strong> 학년도 / 학기 선택</div>
+      <div><strong>4.</strong> 프로그램명 입력</div>
+      <div><strong>5.</strong> 담당 강사 선택: 이름 또는 아이디로 검색</div>
+      <div><strong>6.</strong> 프로그램 유형 선택</div>
+    </div>
+
+    <form action="/admin/programs" method="post" class="stack-form compact-top">
+      <div class="grid-form">
+        <label>
+          <span>교급</span>
+          <select name="school_level" required>
+            <option value="">선택</option>
+            {% for level in school_levels %}
+              <option value="{{ level }}">{{ level }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          <span>학교명</span>
+          <input type="text" name="school_name" placeholder="예: 충주대원고등학교" required />
+        </label>
+        <label>
+          <span>학년도</span>
+          <input type="number" name="year" min="2025" max="2100" value="2026" required />
+        </label>
+        <label>
+          <span>학기</span>
+          <select name="semester" required>
+            <option value="">선택</option>
+            {% for semester in semesters %}
+              <option value="{{ semester }}">{{ semester }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="span-two">
+          <span>프로그램명</span>
+          <input type="text" name="title" placeholder="예: 2026 1학기 실험 탐구 캠프" required />
+        </label>
+        <label class="span-two">
+          <span>담당 강사 검색</span>
+          <input type="text" name="teacher_lookup" list="teacher-lookup-list" placeholder="이름 또는 아이디로 검색" data-teacher-lookup required />
+          <input type="hidden" name="teacher_id" data-teacher-id required />
+          <small class="form-hint">동명이인이 있을 수 있으므로 `강사명 (아이디)` 형식으로 선택해 주세요.</small>
+          <datalist id="teacher-lookup-list">
+            {% for teacher in teachers %}
+              <option value="{{ teacher.name }} ({{ teacher.username }})" data-id="{{ teacher.id }}"></option>
+            {% endfor %}
+          </datalist>
+        </label>
+        <label class="span-two">
+          <span>프로그램 유형</span>
+          <select name="template_id" required>
+            <option value="">선택</option>
+            {% for template in templates %}
+              <option value="{{ template.id }}">{{ template.name }} · {{ template.field_count }}문항</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <button type="submit" class="primary-button admin">캠프 개설</button>
+    </form>
+  </section>
+
+  <section id="teacher-manage" class="surface-card">
+    <div class="section-title">
+      <h2>강사 관리</h2>
+      <p>이름, 대학, 아이디, 비밀번호, 메모, 신분/학적사항을 관리하고 배정 프로그램을 함께 확인합니다.</p>
+    </div>
+
+    <div class="grid-two compact-top">
+      <article class="surface-subcard">
+        <div class="section-title">
+          <h3>강사 등록</h3>
+          <p>아이디와 비밀번호는 비워두면 시스템이 자동 생성합니다.</p>
+        </div>
+        <form action="/admin/teachers" method="post" class="stack-form compact-top">
+          <label>
+            <span>강사명</span>
+            <input type="text" name="name" placeholder="예: 김강사" required />
+          </label>
+          <label>
+            <span>대학</span>
+            <input type="text" name="university" placeholder="예: KAIST" />
+          </label>
+          <label>
+            <span>강사 아이디</span>
+            <input type="text" name="username" placeholder="비워두면 자동 생성" />
+          </label>
+          <label>
+            <span>강사 비밀번호</span>
+            <input type="text" name="password" placeholder="비워두면 자동 생성" />
+          </label>
+          <label>
+            <span>이메일</span>
+            <input type="email" name="email" placeholder="선택 입력" />
+          </label>
+          <label>
+            <span>코드명</span>
+            <input type="text" name="access_code" placeholder="비워두면 자동 생성" />
+          </label>
+          <label>
+            <span>기타사항(메모)</span>
+            <textarea name="memo" rows="3" placeholder="강사 관련 내부 메모"></textarea>
+          </label>
+          <label>
+            <span>신분/학적사항</span>
+            <textarea name="academic_info" rows="4" placeholder="예시&#10;학교 신분&#10;KAIST 박사과정"></textarea>
+          </label>
+          <button type="submit" class="primary-button admin">강사 등록</button>
+        </form>
+      </article>
+
+      <article class="surface-subcard">
+        <div class="section-title">
+          <h3>강사 리스트</h3>
+          <p>아이디와 초기 비밀번호를 바로 확인할 수 있게 구성했습니다.</p>
+        </div>
+        <div class="table-scroll compact-top">
+          <table>
+            <thead>
+              <tr>
+                <th>강사명</th>
+                <th>대학</th>
+                <th>아이디</th>
+                <th>비밀번호</th>
+                <th>코드명</th>
+                <th>신분/학적사항</th>
+                <th>메모</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for teacher in teachers %}
+                <tr>
+                  <td>{{ teacher.name }}</td>
+                  <td>{{ teacher.university or "-" }}</td>
+                  <td><code>{{ teacher.username }}</code></td>
+                  <td><code>{{ teacher.temporary_password or "-" }}</code></td>
+                  <td><code>{{ teacher.access_code }}</code></td>
+                  <td class="prewrap-cell">{{ teacher.academic_info or "-" }}</td>
+                  <td class="prewrap-cell">{{ teacher.memo or "-" }}</td>
+                </tr>
+              {% else %}
+                <tr>
+                  <td colspan="7">등록된 강사가 없습니다.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <div class="section-title compact-top">
+      <h3>강사 배정 현황</h3>
+      <p>강사별로 배정된 학년도, 학기, 학교, 프로그램명, 코드명과 결과물 다운로드 링크를 확인합니다.</p>
+    </div>
+    <div class="table-scroll compact-top">
+      <table>
+        <thead>
+          <tr>
+            <th>강사명</th>
+            <th>아이디</th>
+            <th>학년도/학기</th>
+            <th>학교</th>
+            <th>프로그램명</th>
+            <th>코드명</th>
+            <th>학생 제출</th>
+            <th>결과물</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in teacher_assignments %}
+            <tr>
+              <td>{{ row.teacher_name }}</td>
+              <td>{{ row.teacher_username }}</td>
+              <td>{% if row.program_id %}{{ row.year }} / {{ row.semester }}{% else %}-{% endif %}</td>
+              <td>{% if row.program_id %}{{ row.school_name }} / {{ row.school_level }}{% else %}-{% endif %}</td>
+              <td>{{ row.program_title or "-" }}</td>
+              <td>{% if row.program_code %}<code>{{ row.program_code }}</code>{% else %}-{% endif %}</td>
+              <td>{% if row.program_id %}{{ row.submission_count }}{% else %}-{% endif %}</td>
+              <td>
+                {% if row.program_id %}
+                  <a href="/admin/programs/{{ row.program_id }}/download.xlsx">Excel</a>
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8">배정 현황이 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="result-manage" class="surface-card">
+    <div class="section-title">
+      <h2>결과물 관리</h2>
+      <p>프로그램 목록이 아니라 결과물 관리 목록 기준으로 필터링과 검색이 가능하도록 구성했습니다.</p>
+    </div>
+
+    <form action="/admin" method="get" class="filter-form compact-top">
+      <input type="hidden" name="section" value="result-manage" />
+      <label>
+        <span>학년도</span>
+        <input type="text" name="year" value="{{ filters.year }}" placeholder="예: 2026" />
+      </label>
+      <label>
+        <span>학기</span>
+        <select name="semester">
+          <option value="">전체</option>
+          {% for semester in semesters %}
+            <option value="{{ semester }}" {% if filters.semester == semester %}selected{% endif %}>{{ semester }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>학교명</span>
+        <input type="text" name="school_name" value="{{ filters.school_name }}" placeholder="학교명 검색" />
+      </label>
+      <label>
+        <span>강사</span>
+        <select name="teacher_id">
+          <option value="">전체</option>
+          {% for teacher in teachers %}
+            <option value="{{ teacher.id }}" {% if filters.teacher_id == teacher.id|string %}selected{% endif %}>{{ teacher.name }} ({{ teacher.username }})</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        <span>상태</span>
+        <select name="status">
+          <option value="">전체</option>
+          <option value="collecting" {% if filters.status == "collecting" %}selected{% endif %}>학생 입력 진행 중</option>
+          <option value="teacher_submitted" {% if filters.status == "teacher_submitted" %}selected{% endif %}>강사 제출 완료</option>
+          <option value="completed" {% if filters.status == "completed" %}selected{% endif %}>관리자 마감 완료</option>
+        </select>
+      </label>
+      <label class="span-two">
+        <span>통합 검색</span>
+        <input type="text" name="keyword" value="{{ filters.keyword }}" placeholder="프로그램명, 코드, 유형명 검색" />
+      </label>
+      <div class="filter-actions span-two">
+        <button type="submit" class="secondary-button">필터 적용</button>
+        <a href="/admin#result-manage" class="ghost-link">초기화</a>
+      </div>
+    </form>
+
+    <div class="table-scroll compact-top">
+      <table>
+        <thead>
+          <tr>
+            <th>코드</th>
+            <th>프로그램명</th>
+            <th>학교/교급</th>
+            <th>학년도/학기</th>
+            <th>유형</th>
+            <th>강사</th>
+            <th>학생 제출</th>
+            <th>상태</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for program in programs %}
+            <tr>
+              <td><code>{{ program.program_code }}</code></td>
+              <td>{{ program.title }}</td>
+              <td>{{ program.school_name }} / {{ program.school_level }}</td>
+              <td>{{ program.year }} / {{ program.semester }}</td>
+              <td>{{ program.template_name }}</td>
+              <td>{{ program.teacher_name }}</td>
+              <td>{{ program.reviewed_count }} / {{ program.submission_count }}</td>
+              <td><span class="status-badge">{{ status_label(program.status, "program") }}</span></td>
+              <td>
+                <div class="inline-actions">
+                  <a href="/admin/programs/{{ program.id }}">상세</a>
+                  <a href="/admin/programs/{{ program.id }}/download.xlsx">Excel</a>
+                  <form action="/admin/programs/{{ program.id }}/delete" method="post" class="inline-action-form" data-program-delete-form>
+                    <button type="submit" class="ghost-button-inline delete-mark" aria-label="프로그램 삭제">x</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="9">검색 결과가 없습니다.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="template-manage" class="surface-card">
+    <div class="section-title">
+      <h2>프로그램 유형 관리</h2>
+      <p>유형 입력과 유형 관리를 분리하고, GPT 프롬프트와 질문 내용을 함께 수정할 수 있게 구성했습니다.</p>
+    </div>
+
+    <div class="tabs compact-top" data-tabs>
+      <div class="tab-list" role="tablist" aria-label="프로그램 유형 관리">
+        <button class="tab-button is-active" type="button" data-tab-target="template-create">유형 입력</button>
+        <button class="tab-button" type="button" data-tab-target="template-list">유형 관리</button>
+      </div>
+
+      <div class="tab-panel is-active" data-tab-panel="template-create">
+        <form action="/admin/templates" method="post" class="stack-form">
+          <label>
+            <span>유형명</span>
+            <input type="text" name="name" placeholder="예: 포트폴리오" required />
+          </label>
+          <label>
+            <span>프로그램 설명</span>
+            <textarea name="description" rows="3" placeholder="유형 설명"></textarea>
+          </label>
+          <label>
+            <span>프롬프트</span>
+            <textarea name="prompt_text" rows="8" placeholder="강사 평가 예시를 생성할 프롬프트를 입력해 주세요."></textarea>
+          </label>
+          <label>
+            <span>질문 내용</span>
+            <textarea name="questions" rows="8" placeholder="질문을 한 줄에 하나씩 입력해 주세요." required></textarea>
+          </label>
+          <button type="submit" class="primary-button admin">유형 저장</button>
+        </form>
+      </div>
+
+      <div class="tab-panel" data-tab-panel="template-list">
+        <div class="template-card-grid">
+          {% for template in templates %}
+            <article class="template-detail-card">
+              <div class="template-card-top">
+                <div>
+                  <h3>{{ template.name }}</h3>
+                  <p>{{ template.description or "설명이 아직 없습니다." }}</p>
+                  <small>사용 중 프로그램 {{ template.usage_count }}개 · 문항 {{ template.field_count }}개</small>
+                </div>
+                {% if template.usage_count %}
+                  <button type="button" class="template-card-close is-disabled" data-template-lock-trigger data-template-name="{{ template.name }}" aria-label="사용 중인 유형 안내">x</button>
+                {% else %}
+                  <form action="/admin/templates/{{ template.id }}/delete" method="post" class="inline-action-form">
+                    <button type="submit" class="template-card-close" aria-label="유형 삭제">x</button>
+                  </form>
+                {% endif %}
+              </div>
+
+              <form action="/admin/templates/{{ template.id }}" method="post" class="stack-form compact-top">
+                <label>
+                  <span>유형명</span>
+                  <input type="text" name="name" value="{{ template.name }}" required />
+                </label>
+                <label>
+                  <span>프로그램 설명</span>
+                  <textarea name="description" rows="3">{{ template.description }}</textarea>
+                </label>
+                <label>
+                  <span>프롬프트</span>
+                  <textarea name="prompt_text" rows="8">{{ template.prompt_text }}</textarea>
+                </label>
+                <label>
+                  <span>질문 내용</span>
+                  <textarea name="questions" rows="7" required>{{ template.question_lines }}</textarea>
+                </label>
+                <button type="submit" class="secondary-button">유형 수정 저장</button>
+              </form>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="modal-backdrop" data-template-lock-modal hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="template-lock-title">
+      <button type="button" class="modal-close" data-template-lock-close aria-label="팝업 닫기">x</button>
+      <p class="eyebrow">ALERT</p>
+      <h3 id="template-lock-title">현재 활용중인 프로그램 유형은 삭제할 수 없습니다.</h3>
+      <p><strong data-template-lock-name>선택한 유형</strong>은 이미 프로그램에 연결되어 있어 삭제가 제한됩니다.</p>
+    </div>
+  </div>
+{% endblock %}

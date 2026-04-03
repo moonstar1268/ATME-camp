@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>admin preview</title>
+  </head>
+  <body>
+    <form id="preview-form" action="http://127.0.0.1:8000/login/admin" method="post">
+      <input type="hidden" name="username" value="admin" />
+      <input type="hidden" name="password" value="afe1234!" />
+    </form>
+    <script>
+      window.addEventListener("load", () => {
+        document.getElementById("preview-form").submit();
+      });
+    </script>
+  </body>
+</html>
