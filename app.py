@@ -208,10 +208,6 @@ EVALUATION_EXAMPLE_PROMPT = """
 - 학생이 작성한 정보와 프로그램 정보만 사용.
 """.strip()
 
-# Local fallback key so the teacher AI suggestion works even when the server
-# process is started without OPENAI_API_KEY in the environment.
-OPENAI_EMBEDDED_API_KEY = "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"
-
 env = Environment(
     loader=FileSystemLoader(str(TEMPLATE_DIR)),
     autoescape=select_autoescape(["html", "xml"]),
@@ -1204,7 +1200,7 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
 
 
 def openai_api_key() -> str:
-    return os.environ.get("OPENAI_API_KEY", "").strip() or OPENAI_EMBEDDED_API_KEY.strip()
+    return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
 def openai_is_configured() -> bool:
@@ -1331,7 +1327,7 @@ def ensure_ai_suggestion_for_submission(
     if existing and not force:
         return submission
     if not openai_is_configured():
-        submission["ai_error"] = "OPENAI_API_KEY가 설정되지 않아 평가 예시를 생성할 수 없습니다."
+        submission["ai_error"] = "OPENAI_API_KEY가 설정되지 않았습니다. Render 환경변수에 키를 등록한 뒤 다시 시도해 주세요."
         return submission
 
     try:

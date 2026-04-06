@@ -19,14 +19,19 @@ http://127.0.0.1:8000
 
 ### GPT 평가 예시 기능 사용
 
-강사 화면의 `평가 내용 예시`는 기본적으로 코드에 내장된 fallback 키 또는 환경변수 키로 동작합니다.
-운영 환경에서 별도 키를 쓰고 싶으면 환경변수로 덮어쓸 수 있습니다.
+강사 화면의 `평가 내용 예시`는 `OPENAI_API_KEY` 환경변수가 설정되어 있어야 동작합니다.
+보안과 안정성을 위해 키를 코드나 저장소에 넣지 말고, 로컬 또는 Render 환경변수로만 설정해 주세요.
 
 ```powershell
 $env:OPENAI_API_KEY="sk-..."
 $env:OPENAI_MODEL="gpt-5-mini"
 py app.py
 ```
+
+Render에서는 서비스 설정의 `Environment`에 아래 값을 추가하면 됩니다.
+
+- `OPENAI_API_KEY`: 발급받은 실제 API 키
+- `OPENAI_MODEL`: `gpt-5-mini`
 
 선택 사항
 
