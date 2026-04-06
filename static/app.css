@@ -1102,6 +1102,69 @@ code {
   margin: 8px 0 0;
 }
 
+.teacher-picker {
+  display: grid;
+  gap: 10px;
+}
+
+.teacher-picker-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.teacher-picker-controls input {
+  flex: 1;
+}
+
+.selected-teacher-list,
+.teacher-assignment-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.teacher-picker-empty {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.92rem;
+}
+
+.teacher-chip,
+.teacher-assignment-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dbe7ef;
+  border-radius: 14px;
+  background: #f5f9fc;
+}
+
+.teacher-chip-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.teacher-assignment-item {
+  flex-wrap: wrap;
+}
+
+.teacher-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.teacher-assignment-item.is-current {
+  border-color: var(--teacher);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.18);
+}
+
 @media (max-width: 1080px) {
   .hero-grid,
   .grid-two,
@@ -1161,7 +1224,10 @@ code {
   .submit-complete-actions,
   .inline-actions,
   .filter-actions,
-  .section-nav {
+  .section-nav,
+  .teacher-picker-controls,
+  .teacher-chip,
+  .teacher-assignment-item {
     flex-direction: column;
     align-items: flex-start;
   }

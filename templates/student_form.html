@@ -42,6 +42,17 @@
           <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
           <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
         </div>
+        {% if program.assigned_teachers %}
+          <div class="teacher-assignment-stack compact-top">
+            {% for teacher in program.assigned_teachers %}
+              <div class="teacher-assignment-item">
+                <strong>{{ teacher.name }}</strong>
+                <span>{{ teacher.username }}</span>
+                <code>{{ teacher.access_code }}</code>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
         {% if question_schema.report_reference %}
           <div class="report-reference-card compact-top">
             <p class="section-kicker">연계 보고서</p>

@@ -26,24 +26,106 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.querySelectorAll("[data-teacher-lookup]").forEach((input) => {
-    const hiddenInput = input.form?.querySelector("[data-teacher-id]");
-    const dataListId = input.getAttribute("list");
+  document.querySelectorAll("[data-teacher-picker]").forEach((picker) => {
+    const input = picker.querySelector("[data-teacher-lookup]");
+    const hiddenInput = picker.querySelector("[data-teacher-ids]");
+    const addButton = picker.querySelector("[data-add-teacher]");
+    const selectedList = picker.querySelector("[data-selected-teachers]");
+    const dataListId = input?.getAttribute("list");
     const dataList = dataListId ? document.getElementById(dataListId) : null;
+    const selectedTeachers = new Map();
 
-    const syncTeacher = () => {
-      if (!hiddenInput || !dataList) {
+    if (!input || !hiddenInput || !addButton || !selectedList || !dataList) {
+      return;
+    }
+
+    const updateHiddenInput = () => {
+      hiddenInput.value = Array.from(selectedTeachers.keys()).join(",");
+    };
+
+    const renderSelectedTeachers = () => {
+      selectedList.innerHTML = "";
+      if (!selectedTeachers.size) {
+        const empty = document.createElement("p");
+        empty.className = "teacher-picker-empty";
+        empty.textContent = "아직 배정된 강사가 없습니다.";
+        selectedList.appendChild(empty);
+        updateHiddenInput();
         return;
       }
+
+      selectedTeachers.forEach((teacher, teacherId) => {
+        const chip = document.createElement("div");
+        chip.className = "teacher-chip";
+        const textWrap = document.createElement("div");
+        textWrap.className = "teacher-chip-text";
+
+        const name = document.createElement("strong");
+        name.textContent = teacher.name;
+        textWrap.appendChild(name);
+
+        const username = document.createElement("span");
+        username.textContent = teacher.username;
+        textWrap.appendChild(username);
+
+        const code = document.createElement("code");
+        code.textContent = teacher.code;
+        textWrap.appendChild(code);
+
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "teacher-chip-remove";
+        removeButton.setAttribute("aria-label", "강사 제거");
+        removeButton.textContent = "x";
+        removeButton.addEventListener("click", () => {
+          selectedTeachers.delete(teacherId);
+          renderSelectedTeachers();
+        });
+        chip.appendChild(textWrap);
+        chip.appendChild(removeButton);
+        selectedList.appendChild(chip);
+      });
+
+      updateHiddenInput();
+    };
+
+    const addTeacher = () => {
       const matchedOption = Array.from(dataList.querySelectorAll("option")).find(
         (option) => option.value === input.value,
       );
-      hiddenInput.value = matchedOption?.dataset.id || "";
+      if (!matchedOption?.dataset.id) {
+        window.alert("목록에 있는 강사를 선택한 뒤 추가해 주세요.");
+        return;
+      }
+      if (!selectedTeachers.has(matchedOption.dataset.id)) {
+        selectedTeachers.set(matchedOption.dataset.id, {
+          name: matchedOption.dataset.name || matchedOption.value,
+          username: matchedOption.dataset.username || "-",
+          code: matchedOption.dataset.code || "-",
+        });
+      }
+      input.value = "";
+      renderSelectedTeachers();
     };
 
-    input.addEventListener("change", syncTeacher);
-    input.addEventListener("input", syncTeacher);
-    input.form?.addEventListener("submit", syncTeacher);
+    addButton.addEventListener("click", addTeacher);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addTeacher();
+      }
+    });
+
+    input.form?.addEventListener("submit", (event) => {
+      if (!selectedTeachers.size) {
+        event.preventDefault();
+        window.alert("프로그램에 배정할 강사를 한 명 이상 추가해 주세요.");
+      } else {
+        updateHiddenInput();
+      }
+    });
+
+    renderSelectedTeachers();
   });
 
   const templateLockModal = document.querySelector("[data-template-lock-modal]");

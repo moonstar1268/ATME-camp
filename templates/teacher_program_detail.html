@@ -28,6 +28,20 @@
         <div><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
         <div><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
       </div>
+      {% if program.assigned_teachers %}
+        <div class="detail-block compact-top">
+          <span>배정 강사</span>
+          <div class="teacher-assignment-stack compact-top">
+            {% for assigned_teacher in program.assigned_teachers %}
+              <div class="teacher-assignment-item {% if assigned_teacher.id == teacher.id %}is-current{% endif %}">
+                <strong>{{ assigned_teacher.name }}</strong>
+                <span>{{ assigned_teacher.username }}</span>
+                <code>{{ assigned_teacher.access_code }}</code>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
       {% if question_schema.report_reference %}
         <div class="report-reference-card compact-top">
           <p class="section-kicker">연계 보고서</p>

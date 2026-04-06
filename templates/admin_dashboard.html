@@ -51,7 +51,7 @@
       <div><strong>2.</strong> 학교명 입력</div>
       <div><strong>3.</strong> 학년도 / 학기 선택</div>
       <div><strong>4.</strong> 프로그램명 입력</div>
-      <div><strong>5.</strong> 담당 강사 선택: 이름 또는 아이디로 검색</div>
+      <div><strong>5.</strong> 담당 강사 선택: 검색 후 여러 명 추가</div>
       <div><strong>6.</strong> 프로그램 유형 선택</div>
     </div>
 
@@ -89,14 +89,26 @@
         </label>
         <label class="span-two">
           <span>담당 강사 검색</span>
-          <input type="text" name="teacher_lookup" list="teacher-lookup-list" placeholder="이름 또는 아이디로 검색" data-teacher-lookup required />
-          <input type="hidden" name="teacher_id" data-teacher-id required />
-          <small class="form-hint">동명이인이 있을 수 있으므로 `강사명 (아이디)` 형식으로 선택해 주세요.</small>
-          <datalist id="teacher-lookup-list">
-            {% for teacher in teachers %}
-              <option value="{{ teacher.name }} ({{ teacher.username }})" data-id="{{ teacher.id }}"></option>
-            {% endfor %}
-          </datalist>
+          <div class="teacher-picker" data-teacher-picker>
+            <div class="teacher-picker-controls">
+              <input type="text" name="teacher_lookup" list="teacher-lookup-list" placeholder="이름 또는 아이디로 검색" data-teacher-lookup />
+              <button type="button" class="secondary-button compact-button" data-add-teacher>강사 추가</button>
+            </div>
+            <input type="hidden" name="teacher_ids" data-teacher-ids />
+            <small class="form-hint">동명이인이 있을 수 있으므로 `강사명 (아이디)`를 선택한 뒤 `강사 추가`를 눌러 주세요.</small>
+            <datalist id="teacher-lookup-list">
+              {% for teacher in teachers %}
+                <option
+                  value="{{ teacher.name }} ({{ teacher.username }})"
+                  data-id="{{ teacher.id }}"
+                  data-name="{{ teacher.name }}"
+                  data-username="{{ teacher.username }}"
+                  data-code="{{ teacher.access_code }}"
+                ></option>
+              {% endfor %}
+            </datalist>
+            <div class="selected-teacher-list" data-selected-teachers></div>
+          </div>
         </label>
         <label class="span-two">
           <span>프로그램 유형</span>
@@ -204,7 +216,7 @@
 
     <div class="section-title compact-top">
       <h3>강사 배정 현황</h3>
-      <p>강사별로 배정된 학년도, 학기, 학교, 프로그램명, 코드명과 결과물 다운로드 링크를 확인합니다.</p>
+      <p>강사별로 배정된 프로그램, 강사 코드명, 학생용 프로그램 코드와 결과물 다운로드 링크를 확인합니다.</p>
     </div>
     <div class="table-scroll compact-top">
       <table>
@@ -212,10 +224,11 @@
           <tr>
             <th>강사명</th>
             <th>아이디</th>
+            <th>강사 코드명</th>
             <th>학년도/학기</th>
             <th>학교</th>
             <th>프로그램명</th>
-            <th>코드명</th>
+            <th>프로그램 코드</th>
             <th>학생 제출</th>
             <th>결과물</th>
           </tr>
@@ -225,6 +238,7 @@
             <tr>
               <td>{{ row.teacher_name }}</td>
               <td>{{ row.teacher_username }}</td>
+              <td><code>{{ row.teacher_access_code }}</code></td>
               <td>{% if row.program_id %}{{ row.year }} / {{ row.semester }}{% else %}-{% endif %}</td>
               <td>{% if row.program_id %}{{ row.school_name }} / {{ row.school_level }}{% else %}-{% endif %}</td>
               <td>{{ row.program_title or "-" }}</td>
@@ -240,7 +254,7 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="8">배정 현황이 없습니다.</td>
+              <td colspan="9">배정 현황이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>
@@ -324,7 +338,12 @@
               <td>{{ program.school_name }} / {{ program.school_level }}</td>
               <td>{{ program.year }} / {{ program.semester }}</td>
               <td>{{ program.template_name }}</td>
-              <td>{{ program.teacher_name }}</td>
+              <td>
+                <div>{{ program.teacher_name }}</div>
+                {% if program.teacher_access_code %}
+                  <small>{{ program.teacher_access_code }}</small>
+                {% endif %}
+              </td>
               <td>{{ program.reviewed_count }} / {{ program.submission_count }}</td>
               <td><span class="status-badge">{{ status_label(program.status, "program") }}</span></td>
               <td>

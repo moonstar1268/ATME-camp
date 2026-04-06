@@ -510,6 +510,15 @@ def init_db() -> None:
                 FOREIGN KEY (teacher_id) REFERENCES teachers(id)
             );
 
+            CREATE TABLE IF NOT EXISTS program_teachers (
+                program_id INTEGER NOT NULL,
+                teacher_id INTEGER NOT NULL,
+                assigned_at TEXT NOT NULL,
+                PRIMARY KEY (program_id, teacher_id),
+                FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+                FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS submissions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 program_id INTEGER NOT NULL,
@@ -553,6 +562,7 @@ def init_db() -> None:
         ensure_program_schema_columns(db)
         ensure_submission_schema(db)
         ensure_bootstrap_data(db)
+        ensure_program_teacher_schema(db)
         ensure_pdf_template_presets(db)
 
 
@@ -642,6 +652,33 @@ def ensure_program_schema_columns(db: sqlite3.Connection) -> None:
             if template and (template["prompt_text"] or "").strip():
                 prompt_text = template["prompt_text"]
         db.execute("UPDATE programs SET prompt_text = ? WHERE id = ?", (prompt_text, program["id"]))
+    db.commit()
+
+
+def ensure_program_teacher_schema(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS program_teachers (
+            program_id INTEGER NOT NULL,
+            teacher_id INTEGER NOT NULL,
+            assigned_at TEXT NOT NULL,
+            PRIMARY KEY (program_id, teacher_id),
+            FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+            FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE
+        )
+        """
+    )
+    rows = db.execute(
+        "SELECT id, teacher_id, created_at FROM programs WHERE teacher_id IS NOT NULL"
+    ).fetchall()
+    for row in rows:
+        db.execute(
+            """
+            INSERT OR IGNORE INTO program_teachers (program_id, teacher_id, assigned_at)
+            VALUES (?, ?, ?)
+            """,
+            (row["id"], row["teacher_id"], row["created_at"] or now_iso()),
+        )
     db.commit()
 
 
@@ -1122,26 +1159,124 @@ def get_current_teacher(request: Request) -> sqlite3.Row | None:
     ).fetchone()
 
 
-def get_program_with_teacher(db: sqlite3.Connection, program_id: int) -> sqlite3.Row | None:
-    return db.execute(
+def get_program_teacher_mapping(
+    db: sqlite3.Connection,
+    program_ids: list[int],
+) -> dict[int, list[dict[str, Any]]]:
+    if not program_ids:
+        return {}
+    placeholders = ", ".join("?" for _ in program_ids)
+    rows = db.execute(
+        f"""
+        SELECT
+            pt.program_id,
+            t.id,
+            t.name,
+            t.email,
+            t.access_code,
+            t.university,
+            t.username,
+            t.temporary_password,
+            t.memo,
+            t.academic_info
+        FROM program_teachers pt
+        JOIN teachers t ON t.id = pt.teacher_id
+        WHERE pt.program_id IN ({placeholders})
+        ORDER BY pt.program_id ASC, t.name COLLATE NOCASE ASC, t.username COLLATE NOCASE ASC
+        """,
+        program_ids,
+    ).fetchall()
+    mapping: dict[int, list[dict[str, Any]]] = {}
+    for row in rows:
+        teacher = dict(row)
+        mapping.setdefault(teacher.pop("program_id"), []).append(teacher)
+    return mapping
+
+
+def attach_program_teacher_metadata(
+    program: dict[str, Any],
+    assigned_teachers: list[dict[str, Any]],
+) -> dict[str, Any]:
+    names = [teacher["name"] for teacher in assigned_teachers if teacher.get("name")]
+    display_names = [
+        f"{teacher['name']} ({teacher['username']})"
+        if teacher.get("username")
+        else teacher["name"]
+        for teacher in assigned_teachers
+        if teacher.get("name")
+    ]
+    code_names = [
+        f"{teacher['name']} [{teacher['access_code']}]"
+        if teacher.get("access_code")
+        else teacher["name"]
+        for teacher in assigned_teachers
+        if teacher.get("name")
+    ]
+    access_codes = [
+        teacher["access_code"] for teacher in assigned_teachers if teacher.get("access_code")
+    ]
+
+    primary_teacher_id = program.get("teacher_id")
+    primary_teacher = next(
+        (teacher for teacher in assigned_teachers if teacher["id"] == primary_teacher_id),
+        assigned_teachers[0] if assigned_teachers else None,
+    )
+
+    program["assigned_teachers"] = assigned_teachers
+    program["teacher_count"] = len(assigned_teachers)
+    program["teacher_name"] = ", ".join(names)
+    program["teacher_names"] = ", ".join(names)
+    program["teacher_display_names"] = ", ".join(display_names)
+    program["teacher_code_names"] = ", ".join(code_names)
+    program["teacher_access_code"] = ", ".join(access_codes)
+
+    if primary_teacher:
+        program["teacher_username"] = primary_teacher.get("username", "")
+        program["teacher_university"] = primary_teacher.get("university", "")
+        program["teacher_academic_info"] = primary_teacher.get("academic_info", "")
+    else:
+        program["teacher_username"] = ""
+        program["teacher_university"] = ""
+        program["teacher_academic_info"] = ""
+    return program
+
+
+def attach_program_teacher_metadata_bulk(
+    db: sqlite3.Connection,
+    rows: list[sqlite3.Row | dict[str, Any]],
+) -> list[dict[str, Any]]:
+    programs = [dict(row) for row in rows]
+    mapping = get_program_teacher_mapping(db, [program["id"] for program in programs])
+    for program in programs:
+        attach_program_teacher_metadata(program, mapping.get(program["id"], []))
+    return programs
+
+
+def get_program_with_teacher(db: sqlite3.Connection, program_id: int) -> dict[str, Any] | None:
+    row = db.execute(
         """
         SELECT
             p.*,
-            t.name AS teacher_name,
-            t.username AS teacher_username,
-            t.university AS teacher_university,
-            t.academic_info AS teacher_academic_info,
-            t.access_code AS teacher_access_code,
             (
                 SELECT COUNT(*) FROM submissions s
                 WHERE s.program_id = p.id
             ) AS submission_count
         FROM programs p
-        JOIN teachers t ON t.id = p.teacher_id
         WHERE p.id = ?
         """,
         (program_id,),
     ).fetchone()
+    if not row:
+        return None
+    return attach_program_teacher_metadata_bulk(db, [row])[0]
+
+
+def teacher_has_program_access(db: sqlite3.Connection, teacher_id: int, program_id: int) -> bool:
+    row = db.execute(
+        "SELECT 1 FROM program_teachers WHERE teacher_id = ? AND program_id = ?",
+        (teacher_id, program_id),
+    ).fetchone()
+    return bool(row)
 
 
 def get_program_form_schema(program: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
@@ -1371,6 +1506,7 @@ def query_teacher_assignments(db: sqlite3.Connection) -> list[sqlite3.Row]:
             t.id AS teacher_id,
             t.name AS teacher_name,
             t.username AS teacher_username,
+            t.access_code AS teacher_access_code,
             t.university AS teacher_university,
             t.academic_info AS teacher_academic_info,
             p.id AS program_id,
@@ -1385,17 +1521,17 @@ def query_teacher_assignments(db: sqlite3.Connection) -> list[sqlite3.Row]:
                 SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
             ) AS submission_count
         FROM teachers t
-        LEFT JOIN programs p ON p.teacher_id = t.id
+        LEFT JOIN program_teachers pt ON pt.teacher_id = t.id
+        LEFT JOIN programs p ON p.id = pt.program_id
         ORDER BY t.created_at DESC, p.year DESC, p.semester DESC, p.created_at DESC
         """
     ).fetchall()
 
 
-def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[sqlite3.Row]:
+def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[dict[str, Any]]:
     sql = """
         SELECT
             p.*,
-            t.name AS teacher_name,
             (
                 SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
             ) AS submission_count,
@@ -1405,7 +1541,6 @@ def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[sqli
                 AND TRIM(COALESCE(s.teacher_evaluation, '')) <> ''
             ) AS reviewed_count
         FROM programs p
-        JOIN teachers t ON t.id = p.teacher_id
         WHERE 1 = 1
     """
     params: list[Any] = []
@@ -1419,7 +1554,7 @@ def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[sqli
         sql += " AND p.school_name LIKE ?"
         params.append(f"%{filters['school_name']}%")
     if filters["teacher_id"]:
-        sql += " AND p.teacher_id = ?"
+        sql += " AND EXISTS (SELECT 1 FROM program_teachers pt WHERE pt.program_id = p.id AND pt.teacher_id = ?)"
         params.append(filters["teacher_id"])
     if filters["status"]:
         sql += " AND p.status = ?"
@@ -1428,7 +1563,7 @@ def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[sqli
         sql += " AND (p.title LIKE ? OR p.program_code LIKE ? OR p.template_name LIKE ?)"
         params.extend([f"%{filters['keyword']}%"] * 3)
     sql += " ORDER BY p.year DESC, p.semester DESC, p.created_at DESC"
-    return db.execute(sql, params).fetchall()
+    return attach_program_teacher_metadata_bulk(db, db.execute(sql, params).fetchall())
 
 
 def dashboard_metrics(db: sqlite3.Connection) -> dict[str, int]:
@@ -1646,15 +1781,11 @@ def login_teacher(request: Request) -> Response:
 @route("POST", r"/login/student")
 def login_student(request: Request) -> Response:
     program_code = re.sub(r"[^A-Za-z0-9]", "", request.form.get("program_code", "").strip()).upper()[:12]
-    program = request.db.execute(
-        """
-        SELECT p.*, t.name AS teacher_name
-        FROM programs p
-        JOIN teachers t ON t.id = p.teacher_id
-        WHERE p.program_code = ?
-        """,
+    program_row = request.db.execute(
+        "SELECT * FROM programs WHERE program_code = ?",
         (program_code,),
     ).fetchone()
+    program = attach_program_teacher_metadata_bulk(request.db, [program_row])[0] if program_row else None
     if not program:
         return redirect_response("/?role=student&error=유효한%20프로그램%20코드를%20입력해%20주세요.")
 
@@ -1882,9 +2013,17 @@ def admin_create_program(request: Request) -> Response:
     year = request.form.get("year", "").strip()
     semester = request.form.get("semester", "").strip()
     template_id = request.form.get("template_id", "").strip()
-    teacher_id = request.form.get("teacher_id", "").strip()
+    teacher_ids_raw = request.form.get("teacher_ids", "").strip()
 
-    if not all([title, school_name, school_level, year, semester, template_id, teacher_id]):
+    teacher_ids: list[int] = []
+    for chunk in teacher_ids_raw.split(","):
+        value = chunk.strip()
+        if value.isdigit():
+            parsed = int(value)
+            if parsed not in teacher_ids:
+                teacher_ids.append(parsed)
+
+    if not all([title, school_name, school_level, year, semester, template_id]) or not teacher_ids:
         set_flash(request.db, request.session["id"], "프로그램 개설 항목을 모두 입력해 주세요.", "error")
         return redirect_response("/admin")
 
@@ -1892,16 +2031,17 @@ def admin_create_program(request: Request) -> Response:
         "SELECT * FROM program_templates WHERE id = ?",
         (template_id,),
     ).fetchone()
-    teacher = request.db.execute(
-        "SELECT * FROM teachers WHERE id = ?",
-        (teacher_id,),
-    ).fetchone()
-    if not template or not teacher:
+    placeholders = ", ".join("?" for _ in teacher_ids)
+    teachers = request.db.execute(
+        f"SELECT * FROM teachers WHERE id IN ({placeholders})",
+        teacher_ids,
+    ).fetchall()
+    if not template or len(teachers) != len(teacher_ids):
         set_flash(request.db, request.session["id"], "템플릿 또는 강사 정보가 올바르지 않습니다.", "error")
         return redirect_response("/admin")
 
     program_code = generate_program_code(request.db)
-    request.db.execute(
+    cursor = request.db.execute(
         """
         INSERT INTO programs (
             title, school_name, school_level, year, semester,
@@ -1920,18 +2060,28 @@ def admin_create_program(request: Request) -> Response:
             template["description"],
             (template["prompt_text"] or EVALUATION_EXAMPLE_PROMPT),
             template["questions_json"],
-            teacher["id"],
+            teacher_ids[0],
             program_code,
             "collecting",
             None,
             now_iso(),
         ),
     )
+    program_id = cursor.lastrowid
+    assigned_at = now_iso()
+    for teacher_id in teacher_ids:
+        request.db.execute(
+            """
+            INSERT OR IGNORE INTO program_teachers (program_id, teacher_id, assigned_at)
+            VALUES (?, ?, ?)
+            """,
+            (program_id, teacher_id, assigned_at),
+        )
     request.db.commit()
     set_flash(
         request.db,
         request.session["id"],
-        f"프로그램이 개설되었습니다. 학생용 프로그램 코드는 {program_code} 입니다.",
+        f"프로그램이 개설되었습니다. 학생용 프로그램 코드는 {program_code} 입니다. 배정 강사는 {len(teacher_ids)}명입니다.",
         "success",
     )
     return redirect_response("/admin")
@@ -2062,7 +2212,7 @@ def teacher_dashboard(request: Request) -> Response:
     teacher = get_current_teacher(request)
     if not teacher:
         return redirect_response("/logout")
-    programs = request.db.execute(
+    program_rows = request.db.execute(
         """
         SELECT
             p.*,
@@ -2070,11 +2220,15 @@ def teacher_dashboard(request: Request) -> Response:
                 SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
             ) AS submission_count
         FROM programs p
-        WHERE p.teacher_id = ?
+        WHERE EXISTS (
+            SELECT 1 FROM program_teachers pt
+            WHERE pt.program_id = p.id AND pt.teacher_id = ?
+        )
         ORDER BY p.year DESC, p.semester DESC, p.created_at DESC
         """,
         (teacher["id"],),
     ).fetchall()
+    programs = attach_program_teacher_metadata_bulk(request.db, program_rows)
     metrics = {
         "assigned_programs": len(programs),
         "open_programs": len([program for program in programs if program["status"] == "collecting"]),
@@ -2099,7 +2253,7 @@ def teacher_program_detail(request: Request, program_id: str) -> Response:
     if not teacher:
         return redirect_response("/logout")
     program = get_program_with_teacher(request.db, int(program_id))
-    if not program or program["teacher_id"] != teacher["id"]:
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     submissions = get_submissions_for_program(request.db, int(program_id))
     question_schema = get_program_form_schema(program)
@@ -2125,7 +2279,7 @@ def teacher_regenerate_ai_suggestion(request: Request, program_id: str, submissi
     if not teacher:
         return redirect_response("/logout")
     program = get_program_with_teacher(request.db, int(program_id))
-    if not program or program["teacher_id"] != teacher["id"]:
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
 
     row = request.db.execute(
@@ -2159,7 +2313,7 @@ def teacher_update_submission(request: Request, program_id: str, submission_id: 
     if not teacher:
         return redirect_response("/logout")
     program = get_program_with_teacher(request.db, int(program_id))
-    if not program or program["teacher_id"] != teacher["id"]:
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     if program["status"] in {"teacher_submitted", "completed"}:
         set_flash(request.db, request.session["id"], "이미 제출이 완료된 프로그램은 수정할 수 없습니다.", "error")
@@ -2189,7 +2343,7 @@ def teacher_submit_program(request: Request, program_id: str) -> Response:
     if not teacher:
         return redirect_response("/logout")
     program = get_program_with_teacher(request.db, int(program_id))
-    if not program or program["teacher_id"] != teacher["id"]:
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     request.db.execute(
         """

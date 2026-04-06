@@ -21,11 +21,25 @@
       <div class="meta-grid">
         <div><span>학생용 코드</span><strong>{{ program.program_code }}</strong></div>
         <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
-        <div><span>강사 접속 코드</span><strong>{{ program.teacher_access_code }}</strong></div>
+        <div><span>강사 코드명</span><strong>{{ program.teacher_access_code }}</strong></div>
         <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
         <div><span>상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
         <div><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
       </div>
+      {% if program.assigned_teachers %}
+        <div class="detail-block compact-top">
+          <span>배정 강사 목록</span>
+          <div class="teacher-assignment-stack compact-top">
+            {% for teacher in program.assigned_teachers %}
+              <div class="teacher-assignment-item">
+                <strong>{{ teacher.name }}</strong>
+                <span>{{ teacher.username }}</span>
+                <code>{{ teacher.access_code }}</code>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
 
       <form action="/admin/programs/{{ program.id }}/status" method="post" class="stack-form compact-top">
         <label>
