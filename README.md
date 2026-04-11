@@ -17,6 +17,30 @@ py app.py
 http://127.0.0.1:8000
 ```
 
+### Supabase / Postgres 연동
+
+앱은 기본적으로 로컬 `SQLite`를 사용하지만, `DATABASE_URL` 또는 `SUPABASE_DB_URL` 환경변수가 있으면 자동으로 `Postgres`를 사용합니다.
+
+```powershell
+$env:DATABASE_URL="postgresql://..."
+py app.py
+```
+
+기존 `SQLite` 데이터를 Supabase Postgres로 옮기려면:
+
+```powershell
+$env:DATABASE_URL="postgresql://..."
+py migrate_sqlite_to_postgres.py
+```
+
+대상 Postgres DB에 이미 데이터가 있고 강제로 덮어써야 하면:
+
+```powershell
+$env:DATABASE_URL="postgresql://..."
+$env:FORCE_RESET="1"
+py migrate_sqlite_to_postgres.py
+```
+
 ### GPT 평가 예시 기능 사용
 
 강사 화면의 `평가 내용 예시`는 `OPENAI_API_KEY` 환경변수가 설정되어 있어야 동작합니다.
