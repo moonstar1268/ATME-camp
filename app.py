@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from http.cookies import SimpleCookie
 from io import BytesIO
 from pathlib import Path
+from threading import Lock
 from typing import Any
 from urllib.parse import parse_qs, quote
 from urllib.error import HTTPError, URLError
@@ -24,9 +25,11 @@ from openpyxl.styles import Alignment, Font, PatternFill
 try:
     import psycopg
     from psycopg.rows import dict_row
+    from psycopg_pool import ConnectionPool
 except ImportError:
     psycopg = None
     dict_row = None
+    ConnectionPool = None
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATE_DIR = BASE_DIR / "templates"
@@ -39,6 +42,10 @@ SESSION_HOURS = 12
 PASSWORD_ITERATIONS = 120_000
 
 ROUTES: list[tuple[str, re.Pattern[str], Any]] = []
+POSTGRES_POOL: Any | None = None
+POSTGRES_POOL_LOCK = Lock()
+APP_READY = False
+APP_READY_LOCK = Lock()
 
 SCHOOL_LEVEL_OPTIONS = ["중학교", "고등학교"]
 SEMESTER_OPTIONS = ["1학기", "2학기"]
@@ -333,9 +340,10 @@ class DBCursor:
 
 
 class DBConnection:
-    def __init__(self, raw: Any, dialect: str):
+    def __init__(self, raw: Any, dialect: str, releaser: Any | None = None):
         self.raw = raw
         self.dialect = dialect
+        self.releaser = releaser
 
     def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> DBCursor:
         if self.dialect == "postgres":
@@ -355,6 +363,14 @@ class DBConnection:
         self.raw.rollback()
 
     def close(self) -> None:
+        if self.dialect == "postgres":
+            try:
+                self.raw.rollback()
+            except Exception:
+                pass
+        if self.releaser:
+            self.releaser(self.raw)
+            return
         self.raw.close()
 
     def column_names(self, table_name: str) -> list[str]:
@@ -388,15 +404,59 @@ class DBConnection:
 def connect_db() -> DBConnection:
     database_url = configured_database_url()
     if database_url:
-        if psycopg is None or dict_row is None:
+        if psycopg is None or dict_row is None or ConnectionPool is None:
             raise RuntimeError("psycopg가 설치되지 않아 Postgres/Supabase에 연결할 수 없습니다.")
-        conn = psycopg.connect(database_url, row_factory=dict_row)
-        return DBConnection(conn, "postgres")
+        pool = get_postgres_pool()
+        conn = pool.getconn()
+        return DBConnection(conn, "postgres", releaser=pool.putconn)
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return DBConnection(conn, "sqlite")
+
+
+def get_postgres_pool() -> Any:
+    global POSTGRES_POOL
+    if POSTGRES_POOL is not None:
+        return POSTGRES_POOL
+
+    with POSTGRES_POOL_LOCK:
+        if POSTGRES_POOL is not None:
+            return POSTGRES_POOL
+        database_url = configured_database_url()
+        if not database_url:
+            raise RuntimeError("DATABASE_URL is not configured.")
+        min_size = max(1, int(os.environ.get("DB_POOL_MIN", "1")))
+        max_size = max(min_size, int(os.environ.get("DB_POOL_MAX", "5")))
+        timeout = int(os.environ.get("DB_POOL_TIMEOUT", "15"))
+        POSTGRES_POOL = ConnectionPool(
+            conninfo=database_url,
+            min_size=min_size,
+            max_size=max_size,
+            timeout=timeout,
+            kwargs={"row_factory": dict_row},
+            open=True,
+        )
+        try:
+            POSTGRES_POOL.wait()
+        except Exception:
+            POSTGRES_POOL.close()
+            POSTGRES_POOL = None
+            raise
+        return POSTGRES_POOL
+
+
+def ensure_runtime_ready() -> None:
+    global APP_READY
+    if APP_READY:
+        return
+
+    with APP_READY_LOCK:
+        if APP_READY:
+            return
+        init_db()
+        APP_READY = True
 
 
 def password_hash(password: str, salt: str | None = None) -> str:
@@ -2646,7 +2706,7 @@ def health(_: Request) -> Response:
 
 
 def application(environ: dict[str, Any], start_response):
-    init_db()
+    ensure_runtime_ready()
     db = connect_db()
     request = Request(environ, db)
     try:
@@ -2686,7 +2746,7 @@ def application(environ: dict[str, Any], start_response):
 
 
 def main() -> None:
-    init_db()
+    ensure_runtime_ready()
     host = "127.0.0.1"
     port = int(os.environ.get("PORT", "8000"))
     print(f"AFE 서버 실행 중: http://{host}:{port}")
