@@ -595,7 +595,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const help = document.createElement("p");
       help.className = "reference-inline-help";
-      help.textContent = "ATME 운영과 같은 흐름으로 교과, 대단원, 세부 단원을 선택하면 질문지에 자동 반영됩니다.";
+      help.textContent = "이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.";
 
       const clearButton = document.createElement("button");
       clearButton.type = "button";

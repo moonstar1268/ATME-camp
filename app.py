@@ -753,6 +753,19 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
                 FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
             );
 
+            CREATE TABLE IF NOT EXISTS student_drafts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                program_id INTEGER NOT NULL,
+                student_name TEXT NOT NULL,
+                student_number TEXT DEFAULT '',
+                desired_major TEXT DEFAULT '',
+                answers_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE (program_id, student_name),
+                FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
+            );
+
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
                 role TEXT NOT NULL,
@@ -1209,6 +1222,30 @@ def pop_flash(db: sqlite3.Connection, session_id: str) -> dict[str, str] | None:
     return flash
 
 
+def update_session_context(
+    db: sqlite3.Connection,
+    session_id: str | None,
+    updates: dict[str, Any],
+) -> dict[str, Any]:
+    if not session_id:
+        return {}
+    row = db.execute("SELECT context_json FROM sessions WHERE id = ?", (session_id,)).fetchone()
+    if not row:
+        return {}
+    context = parse_json(row["context_json"], {})
+    for key, value in updates.items():
+        if value is None:
+            context.pop(key, None)
+        else:
+            context[key] = value
+    db.execute(
+        "UPDATE sessions SET context_json = ?, expires_at = ? WHERE id = ?",
+        (json_dump(context), iso_after_hours(SESSION_HOURS), session_id),
+    )
+    db.commit()
+    return context
+
+
 def generate_program_code(db: sqlite3.Connection) -> str:
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     while True:
@@ -1559,6 +1596,166 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
         item["final_evaluation"] = final_evaluation(row)
         submissions.append(item)
     return submissions
+
+
+def get_student_name_from_session(request: Request) -> str:
+    if not request.session or request.session["role"] != "student":
+        return ""
+    return str((request.session.get("context") or {}).get("student_name", "")).strip()
+
+
+def collect_student_answers(
+    request: Request,
+    fields: list[dict[str, Any]],
+) -> tuple[list[dict[str, str]], dict[str, str]]:
+    answers: list[dict[str, str]] = []
+    answers_map: dict[str, str] = {}
+    for field in fields:
+        key = field["id"]
+        answer = request.form.get(key, "").strip()
+        answers_map[key] = answer
+        answers.append(
+            {
+                "field_id": key,
+                "question": field["label"],
+                "answer": answer,
+                "section_title": field["section_title"],
+            }
+        )
+    return answers, answers_map
+
+
+def get_student_draft(
+    db: sqlite3.Connection,
+    program_id: int,
+    student_name: str,
+) -> dict[str, Any] | None:
+    if not student_name:
+        return None
+    row = db.execute(
+        """
+        SELECT * FROM student_drafts
+        WHERE program_id = ? AND student_name = ?
+        """,
+        (program_id, student_name),
+    ).fetchone()
+    if not row:
+        return None
+    draft = dict(row)
+    parsed_answers = parse_json(draft.get("answers_json"), {})
+    draft["answers"] = parsed_answers if isinstance(parsed_answers, dict) else {}
+    return draft
+
+
+def save_student_draft(
+    db: sqlite3.Connection,
+    *,
+    program_id: int,
+    student_name: str,
+    student_number: str,
+    desired_major: str,
+    answers_map: dict[str, str],
+) -> None:
+    existing = db.execute(
+        """
+        SELECT id FROM student_drafts
+        WHERE program_id = ? AND student_name = ?
+        """,
+        (program_id, student_name),
+    ).fetchone()
+    if existing:
+        db.execute(
+            """
+            UPDATE student_drafts
+            SET student_number = ?, desired_major = ?, answers_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                student_number,
+                desired_major,
+                json_dump(answers_map),
+                now_iso(),
+                existing["id"],
+            ),
+        )
+    else:
+        db.execute(
+            """
+            INSERT INTO student_drafts (
+                program_id, student_name, student_number, desired_major,
+                answers_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                program_id,
+                student_name,
+                student_number,
+                desired_major,
+                json_dump(answers_map),
+                now_iso(),
+                now_iso(),
+            ),
+        )
+    db.commit()
+
+
+def delete_student_draft(
+    db: sqlite3.Connection,
+    *,
+    program_id: int,
+    student_name: str,
+) -> None:
+    if not student_name:
+        return
+    db.execute(
+        "DELETE FROM student_drafts WHERE program_id = ? AND student_name = ?",
+        (program_id, student_name),
+    )
+    db.commit()
+
+
+def build_student_form_data(
+    *,
+    student_name: str,
+    draft: dict[str, Any] | None = None,
+    student_number: str = "",
+    desired_major: str = "",
+    answers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    draft = draft or {}
+    return {
+        "student_number": student_number or draft.get("student_number", ""),
+        "student_name": student_name,
+        "desired_major": desired_major or draft.get("desired_major", ""),
+        "answers": answers or draft.get("answers", {}) or {},
+    }
+
+
+def render_student_form_page(
+    request: Request,
+    *,
+    program: dict[str, Any],
+    error: str = "",
+    is_locked: bool = False,
+    form_data: dict[str, Any] | None = None,
+) -> Response:
+    question_schema = get_program_form_schema(program)
+    student_name = (form_data or {}).get("student_name") or get_student_name_from_session(request)
+    draft = get_student_draft(request.db, int(program["id"]), student_name) if student_name else None
+    resolved_form_data = form_data or build_student_form_data(student_name=student_name, draft=draft)
+    return render_template(
+        request,
+        "student_form.html",
+        program=program,
+        questions=get_program_questions(program),
+        question_schema=question_schema,
+        is_locked=is_locked,
+        error=error,
+        form_data=resolved_form_data,
+        student_name=student_name,
+        has_saved_draft=bool(draft),
+        draft_updated_at=draft["updated_at"] if draft else "",
+    )
 
 
 def openai_api_key() -> str:
@@ -2143,7 +2340,7 @@ def login_student(request: Request) -> Response:
         context={"program_code": program_code},
     )
     headers = [session_cookie_header(session_id)]
-    return redirect_response("/student", headers=headers)
+    return redirect_response("/student/start", headers=headers)
 
 
 @route("GET", r"/logout")
@@ -2839,18 +3036,119 @@ def student_form(request: Request) -> Response:
     if auth:
         return auth
     program = get_program_with_teacher(request.db, int(request.session["program_id"]))
-    question_schema = get_program_form_schema(program) if program else {"flat_fields": [], "sections": []}
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
+    if not get_student_name_from_session(request):
+        return redirect_response("/student/start")
+    return render_student_form_page(
+        request,
+        program=program,
+        is_locked=program["status"] != "collecting",
+    )
+
+
+@route("GET", r"/student/start")
+def student_start(request: Request) -> Response:
+    auth = require_role(request, "student")
+    if auth:
+        return auth
+    program = get_program_with_teacher(request.db, int(request.session["program_id"]))
+    if not program:
+        return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
+    student_name = get_student_name_from_session(request)
+    if student_name and request.query.get("change", "") != "1":
+        return redirect_response("/student")
+    draft = get_student_draft(request.db, int(program["id"]), student_name) if student_name else None
     return render_template(
         request,
-        "student_form.html",
+        "student_start.html",
         program=program,
-        questions=get_program_questions(program),
-        question_schema=question_schema,
-        is_locked=program["status"] != "collecting",
-        form_data={"student_number": "", "student_name": "", "desired_major": "", "answers": {}},
+        student_name=student_name,
+        draft_exists=bool(draft),
+        draft_updated_at=draft["updated_at"] if draft else "",
+        error="",
     )
+
+
+@route("POST", r"/student/start")
+def student_start_submit(request: Request) -> Response:
+    auth = require_role(request, "student")
+    if auth:
+        return auth
+    program = get_program_with_teacher(request.db, int(request.session["program_id"]))
+    if not program:
+        return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
+    student_name = request.form.get("student_name", "").strip()
+    if not student_name:
+        return render_template(
+            request,
+            "student_start.html",
+            program=program,
+            student_name="",
+            draft_exists=False,
+            draft_updated_at="",
+            error="이름을 입력해 주세요.",
+        )
+
+    updated_context = update_session_context(
+        request.db,
+        request.session["id"],
+        {"student_name": student_name},
+    )
+    if request.session:
+        request.session["context"] = updated_context
+
+    draft = get_student_draft(request.db, int(program["id"]), student_name)
+    if draft:
+        set_flash(request.db, request.session["id"], "이전에 임시저장한 내용을 불러왔습니다.", "info")
+    return redirect_response("/student")
+
+
+@route("POST", r"/student/draft")
+def student_save_draft_action(request: Request) -> Response:
+    auth = require_role(request, "student")
+    if auth:
+        return auth
+    program = get_program_with_teacher(request.db, int(request.session["program_id"]))
+    if not program:
+        return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
+    if program["status"] != "collecting":
+        set_flash(request.db, request.session["id"], "지금은 임시저장할 수 없는 프로그램 상태입니다.", "error")
+        return redirect_response("/student")
+
+    student_name = get_student_name_from_session(request)
+    if not student_name:
+        return redirect_response("/student/start")
+
+    question_schema = get_program_form_schema(program)
+    fields = question_schema["flat_fields"]
+    student_number = request.form.get("student_number", "").strip()
+    desired_major = request.form.get("desired_major", "").strip()
+    _, answers_map = collect_student_answers(request, fields)
+    has_content = bool(
+        student_number
+        or desired_major
+        or any((value or "").strip() for value in answers_map.values())
+    )
+    if not has_content:
+        set_flash(request.db, request.session["id"], "임시저장할 내용을 먼저 입력해 주세요.", "info")
+        return redirect_response("/student")
+
+    save_student_draft(
+        request.db,
+        program_id=int(program["id"]),
+        student_name=student_name,
+        student_number=student_number,
+        desired_major=desired_major,
+        answers_map=answers_map,
+    )
+    set_flash(
+        request.db,
+        request.session["id"],
+        "임시저장되었습니다. 같은 이름으로 다시 들어오면 이어서 작성할 수 있습니다.",
+        "success",
+    )
+    return redirect_response("/student")
 
 
 @route("POST", r"/student/submit")
@@ -2859,54 +3157,36 @@ def student_submit(request: Request) -> Response:
     if auth:
         return auth
     program = get_program_with_teacher(request.db, int(request.session["program_id"]))
-    question_schema = get_program_form_schema(program) if program else {"flat_fields": [], "sections": []}
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
+    student_name = get_student_name_from_session(request)
+    if not student_name:
+        return redirect_response("/student/start")
     if program["status"] != "collecting":
-        return render_template(
+        return render_student_form_page(
             request,
-            "student_form.html",
             program=program,
-            questions=get_program_questions(program),
-            question_schema=question_schema,
             is_locked=True,
             error="이미 강사 제출 또는 관리자 마감이 완료된 프로그램입니다.",
-            form_data={"student_number": "", "student_name": "", "desired_major": "", "answers": {}},
         )
 
+    question_schema = get_program_form_schema(program)
     fields = question_schema["flat_fields"]
     student_number = request.form.get("student_number", "").strip()
-    student_name = request.form.get("student_name", "").strip()
     desired_major = request.form.get("desired_major", "").strip()
 
-    answers: list[dict[str, str]] = []
-    answers_map: dict[str, str] = {}
-    for index, field in enumerate(fields):
-        key = field["id"]
-        answer = request.form.get(key, "").strip()
-        answers_map[key] = answer
-        answers.append(
-            {
-                "field_id": key,
-                "question": field["label"],
-                "answer": answer,
-                "section_title": field["section_title"],
-            }
-        )
+    answers, answers_map = collect_student_answers(request, fields)
 
     has_missing_required = any(
         field.get("required", True) and not answers_map.get(field["id"], "").strip()
         for field in fields
     )
     if not student_number or not student_name or not desired_major or has_missing_required:
-        return render_template(
+        return render_student_form_page(
             request,
-            "student_form.html",
             program=program,
-            questions=get_program_questions(program),
-            question_schema=question_schema,
             is_locked=False,
-            error="학번, 이름, 희망전공, 질문 응답을 모두 입력해 주세요.",
+            error="학번, 희망전공, 질문 응답을 모두 입력해 주세요.",
             form_data={
                 "student_number": student_number,
                 "student_name": student_name,
@@ -2980,6 +3260,11 @@ def student_submit(request: Request) -> Response:
             )
             saved_submission_id = int(cursor.lastrowid)
     request.db.commit()
+    delete_student_draft(
+        request.db,
+        program_id=int(program["id"]),
+        student_name=student_name,
+    )
     saved_submission = None
     if saved_submission_id and openai_is_configured():
         normalized_submission = get_submissions_for_program(request.db, int(program["id"]))
