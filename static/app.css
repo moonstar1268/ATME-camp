@@ -1,8 +1,8 @@
 :root {
-  --bg-1: #08131f;
-  --bg-2: #10273b;
+  --bg-1: #ffffff;
+  --bg-2: #f7fbfd;
   --bg-3: #f3f7fa;
-  --surface-dark: rgba(255, 255, 255, 0.08);
+  --surface-dark: rgba(16, 33, 53, 0.04);
   --surface-light: rgba(255, 255, 255, 0.94);
   --line-dark: rgba(255, 255, 255, 0.12);
   --line-light: #d8e4ec;
@@ -31,10 +31,7 @@ body {
 body {
   font-family: "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   color: var(--text-main);
-  background:
-    radial-gradient(circle at top left, rgba(42, 157, 143, 0.18), transparent 28%),
-    radial-gradient(circle at right top, rgba(76, 139, 245, 0.14), transparent 26%),
-    linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 40%, #163c59 100%);
+  background: #ffffff;
 }
 
 a {
@@ -71,7 +68,7 @@ button {
   display: inline-flex;
   flex-direction: column;
   gap: 4px;
-  color: var(--text-invert);
+  color: var(--text-main);
 }
 
 .brand-kicker,
@@ -90,7 +87,7 @@ button {
 }
 
 .topbar-nav a {
-  color: rgba(255, 255, 255, 0.88);
+  color: #355069;
   font-weight: 600;
 }
 
@@ -144,9 +141,9 @@ button {
 }
 
 .hero-card {
-  border: 1px solid var(--line-dark);
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
-  color: var(--text-invert);
+  border: 1px solid var(--line-light);
+  background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%);
+  color: var(--text-main);
   padding: 36px;
 }
 
@@ -159,7 +156,7 @@ button {
 
 .hero-copy,
 .page-header p {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--text-soft);
   line-height: 1.7;
 }
 
@@ -174,8 +171,8 @@ button {
   gap: 14px;
   padding: 18px;
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f5f9fc;
+  border: 1px solid #dde8ef;
 }
 
 .hero-list-item span:first-child {
@@ -185,7 +182,7 @@ button {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(42, 157, 143, 0.12);
   font-weight: 700;
 }
 
@@ -401,9 +398,9 @@ textarea:focus {
 .info-card {
   margin-top: 20px;
   padding: 20px;
-  background: rgba(255, 255, 255, 0.09);
-  color: var(--text-invert);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #f7fbfd;
+  color: var(--text-main);
+  border: 1px solid #dce7ee;
 }
 
 .info-card.compact {
@@ -462,15 +459,15 @@ textarea:focus {
 }
 
 .page-header h1 {
-  color: var(--text-invert);
+  color: var(--text-main);
 }
 
 .page-header p {
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--text-soft);
 }
 
 .page-header .eyebrow {
-  color: #9fc5d8;
+  color: #6b8498;
 }
 
 .header-actions {
@@ -581,7 +578,7 @@ th {
 
 .detail-note {
   margin-top: 10px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-soft);
   line-height: 1.7;
 }
 

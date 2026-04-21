@@ -1875,11 +1875,11 @@ def serve_static(path: str) -> Response:
 @route("GET", r"/")
 def landing(request: Request) -> Response:
     active_role = request.query.get("role", "").strip()
-    if not active_role and request.session and request.session["role"] in {"student", "teacher"}:
+    if not active_role and request.session and request.session["role"] in {"admin", "student", "teacher"}:
         active_role = request.session["role"]
     if not active_role:
         active_role = "student"
-    if active_role not in {"student", "teacher"}:
+    if active_role not in {"admin", "student", "teacher"}:
         active_role = "student"
     error = request.query.get("error", "")
     current_teacher = get_current_teacher(request)
@@ -1901,7 +1901,10 @@ def admin_login_page(request: Request) -> Response:
     if request.session and request.session["role"] == "admin":
         return redirect_response("/admin")
     error = request.query.get("error", "")
-    return render_template(request, "admin_login.html", error=error)
+    destination = "/?role=admin"
+    if error:
+        destination = f"{destination}&error={quote(error)}"
+    return redirect_response(destination)
 
 
 @route("POST", r"/login/admin")
