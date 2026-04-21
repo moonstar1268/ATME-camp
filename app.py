@@ -2193,6 +2193,7 @@ def admin_dashboard(request: Request) -> Response:
         metrics=metrics,
         school_levels=SCHOOL_LEVEL_OPTIONS,
         semesters=SEMESTER_OPTIONS,
+        default_prompt_text=EVALUATION_EXAMPLE_PROMPT.strip(),
     )
 
 
