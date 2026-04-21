@@ -6,8 +6,10 @@ import re
 import secrets
 import sqlite3
 import string
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from functools import lru_cache
 from http.cookies import SimpleCookie
 from io import BytesIO
 from pathlib import Path
@@ -46,6 +48,7 @@ POSTGRES_POOL: Any | None = None
 POSTGRES_POOL_LOCK = Lock()
 APP_READY = False
 APP_READY_LOCK = Lock()
+REFERENCE_API_BASE_URL = os.environ.get("ATME_REFERENCE_API_URL", "https://api.xn--vj4b68z.com").rstrip("/")
 
 SCHOOL_LEVEL_OPTIONS = ["중학교", "고등학교"]
 SEMESTER_OPTIONS = ["1학기", "2학기"]
@@ -491,6 +494,46 @@ def parse_json(value: str | None, fallback: Any) -> Any:
 
 def parse_questions_from_text(raw_text: str) -> list[str]:
     return [line.strip() for line in raw_text.splitlines() if line.strip()]
+
+
+@lru_cache(maxsize=256)
+def fetch_reference_api_payload(path: str) -> dict[str, Any]:
+    url = f"{REFERENCE_API_BASE_URL}{path}"
+    upstream_request = UrlRequest(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "AFE-Camp-Manager/1.0",
+        },
+    )
+    try:
+        with urlopen(upstream_request, timeout=12) as response:
+            body = response.read().decode("utf-8")
+    except URLError:
+        body = ""
+        last_error: Exception | None = None
+        for command in (["curl", "--silent", "--show-error", "--fail", "--max-time", "12", url], ["curl.exe", "--silent", "--show-error", "--fail", "--max-time", "12", url]):
+            try:
+                completed = subprocess.run(
+                    command,
+                    capture_output=True,
+                    check=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=15,
+                )
+                body = completed.stdout
+                break
+            except FileNotFoundError as exc:
+                last_error = exc
+            except subprocess.SubprocessError as exc:
+                last_error = exc
+        if not body:
+            raise URLError(last_error or "Reference API connection failed")
+    payload = parse_json(body, {})
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid reference API response")
+    return payload
 
 
 def normalize_template_schema(raw_schema: Any, fallback_title: str = "") -> dict[str, Any]:
@@ -1242,6 +1285,17 @@ def text_response(text: str, status: str = "200 OK") -> Response:
     )
 
 
+def json_response(payload: Any, status: str = "200 OK") -> Response:
+    return Response(
+        body=json_dump(payload).encode("utf-8"),
+        status=status,
+        headers=[
+            ("Content-Type", "application/json; charset=utf-8"),
+            ("Cache-Control", "public, max-age=3600"),
+        ],
+    )
+
+
 def bytes_response(
     content: bytes,
     *,
@@ -1859,6 +1913,30 @@ def build_excel(programs: list[sqlite3.Row | dict[str, Any]], db: sqlite3.Connec
     return stream.getvalue()
 
 
+def reference_proxy_response(path: str) -> Response:
+    try:
+        payload = fetch_reference_api_payload(path)
+    except HTTPError as exc:
+        return json_response(
+            {
+                "status": "Error",
+                "message": f"Reference API request failed ({exc.code})",
+                "data": [],
+            },
+            status="502 Bad Gateway",
+        )
+    except (URLError, TimeoutError, ValueError) as exc:
+        return json_response(
+            {
+                "status": "Error",
+                "message": f"Reference API is unavailable: {exc}",
+                "data": [],
+            },
+            status="502 Bad Gateway",
+        )
+    return json_response(payload)
+
+
 def serve_static(path: str) -> Response:
     relative = path.removeprefix("/static/").strip("/")
     candidate = (STATIC_DIR / relative).resolve()
@@ -1870,6 +1948,41 @@ def serve_static(path: str) -> Response:
         status="200 OK",
         headers=[("Content-Type", content_type or "application/octet-stream")],
     )
+
+
+@route("GET", r"/references/cities")
+def reference_cities(_: Request) -> Response:
+    return reference_proxy_response("/api/references/cities")
+
+
+@route("GET", r"/references/(?P<city_id>\d+)/districts")
+def reference_districts(_: Request, city_id: str) -> Response:
+    return reference_proxy_response(f"/api/references/{city_id}/districts")
+
+
+@route("GET", r"/references/(?P<district_id>\d+)/schools")
+def reference_schools(request: Request, district_id: str) -> Response:
+    school_level = request.query.get("schoolLevel", "").strip().upper()
+    if school_level not in {"MIDDLE", "HIGH"}:
+        school_level = "HIGH"
+    return reference_proxy_response(
+        f"/api/references/{district_id}/schools?schoolLevel={school_level}"
+    )
+
+
+@route("GET", r"/references/curricula")
+def reference_curricula(_: Request) -> Response:
+    return reference_proxy_response("/api/references/curricula")
+
+
+@route("GET", r"/references/curricula/(?P<curriculum_id>\d+)")
+def reference_curricula_units(_: Request, curriculum_id: str) -> Response:
+    return reference_proxy_response(f"/api/references/curricula/{curriculum_id}")
+
+
+@route("GET", r"/references/curriculumUnit/(?P<curriculum_unit_id>\d+)")
+def reference_curricula_sub_units(_: Request, curriculum_unit_id: str) -> Response:
+    return reference_proxy_response(f"/api/references/curriculumUnit/{curriculum_unit_id}")
 
 
 @route("GET", r"/")

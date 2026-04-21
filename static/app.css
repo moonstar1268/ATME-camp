@@ -353,6 +353,83 @@ textarea:focus {
   box-shadow: 0 0 0 4px rgba(107, 174, 214, 0.18);
 }
 
+.reference-enhancer {
+  display: grid;
+  gap: 14px;
+}
+
+.reference-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.reference-toggle-button,
+.reference-clear-button {
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid #cddae3;
+  background: #ffffff;
+  color: #365268;
+  font-weight: 700;
+  padding: 0 16px;
+}
+
+.reference-toggle-button.is-active {
+  border-color: #4c8bf5;
+  background: rgba(76, 139, 245, 0.1);
+  color: #1f5ec6;
+}
+
+.reference-search-row {
+  display: grid;
+  gap: 8px;
+}
+
+.reference-select-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.reference-select-grid-school {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.reference-select-grid-curriculum {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.reference-select-field {
+  display: grid;
+  gap: 8px;
+}
+
+.reference-select-label {
+  color: #587187;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.reference-summary-text,
+.reference-inline-help {
+  margin: 0;
+}
+
+.reference-summary-text {
+  color: #21435f;
+  font-weight: 700;
+}
+
+.reference-inline-help {
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.curriculum-selector-card {
+  position: relative;
+}
+
 .primary-button,
 .secondary-button {
   display: inline-flex;
@@ -1167,7 +1244,9 @@ code {
   .grid-two,
   .stats-grid,
   .filter-form,
-  .structured-fields {
+  .structured-fields,
+  .reference-select-grid-school,
+  .reference-select-grid-curriculum {
     grid-template-columns: 1fr;
   }
 
@@ -1224,7 +1303,8 @@ code {
   .section-nav,
   .teacher-picker-controls,
   .teacher-chip,
-  .teacher-assignment-item {
+  .teacher-assignment-item,
+  .reference-choice-row {
     flex-direction: column;
     align-items: flex-start;
   }
