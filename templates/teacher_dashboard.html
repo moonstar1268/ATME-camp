@@ -67,7 +67,6 @@
       <table>
         <thead>
           <tr>
-            <th>코드</th>
             <th>프로그램명</th>
             <th>학교/교급</th>
             <th>학년도/학기</th>
@@ -80,8 +79,12 @@
         <tbody>
           {% for program in programs %}
             <tr>
-              <td><code>{{ program.program_code }}</code></td>
-              <td>{{ program.title }}</td>
+              <td>
+                <div class="program-title-stack">
+                  <strong>{{ program.title }}</strong>
+                  <small class="program-inline-code">프로그램 코드 <code>{{ program.program_code }}</code></small>
+                </div>
+              </td>
               <td>{{ program.school_name }} / {{ program.school_level }}</td>
               <td>{{ program.year }} / {{ program.semester }}</td>
               <td>{{ program.template_name }}</td>
@@ -100,11 +103,15 @@
             </tr>
           {% else %}
             <tr>
-              <td colspan="8">현재 배정된 프로그램이 없습니다.</td>
+              <td colspan="7">현재 배정된 프로그램이 없습니다.</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
+    </div>
+
+    <div class="surface-subcard compact-top">
+      <p class="dashboard-note">강사님들은 학생들에게 프로그램 코드(ex. NNNNN)를 안내하여 생활기록부 내용을 기재할 수 있도록 지도해주시기 바랍니다.</p>
     </div>
   </section>
 {% endblock %}

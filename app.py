@@ -49,6 +49,7 @@ POSTGRES_POOL_LOCK = Lock()
 APP_READY = False
 APP_READY_LOCK = Lock()
 REFERENCE_API_BASE_URL = os.environ.get("ATME_REFERENCE_API_URL", "https://api.xn--vj4b68z.com").rstrip("/")
+INVALID_LOGIN_MESSAGE = "잘못된 로그인 시도입니다. ID나 PW를 다시 확인하시기 바랍니다."
 
 SCHOOL_LEVEL_OPTIONS = ["중학교", "고등학교"]
 SEMESTER_OPTIONS = ["1학기", "2학기"]
@@ -1271,10 +1272,20 @@ def html_response(html: str, status: str = "200 OK", headers: list[tuple[str, st
 
 
 def redirect_response(location: str, headers: list[tuple[str, str]] | None = None) -> Response:
+    if location.startswith("/admin/login?error="):
+        location = f"/?role=admin&error={quote(INVALID_LOGIN_MESSAGE)}"
+    elif location.startswith("/?role=teacher&error="):
+        location = f"/?role=teacher&error={quote(INVALID_LOGIN_MESSAGE)}"
+    elif location.startswith("/?role=student&error="):
+        location = f"/?role=student&error={quote(INVALID_LOGIN_MESSAGE)}"
     base_headers = [("Location", location)]
     if headers:
         base_headers.extend(headers)
     return Response(body=b"", status="302 Found", headers=base_headers)
+
+
+def login_error_redirect(role: str) -> Response:
+    return redirect_response(f"/?role={quote(role)}&error={quote(INVALID_LOGIN_MESSAGE)}")
 
 
 def text_response(text: str, status: str = "200 OK") -> Response:
@@ -1715,6 +1726,62 @@ def admin_filters_from_request(request: Request) -> dict[str, str]:
     }
 
 
+def list_program_options(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT
+            p.id,
+            p.title,
+            p.program_code,
+            p.year,
+            p.semester,
+            p.school_name,
+            p.school_level
+        FROM programs p
+        ORDER BY p.year DESC, p.semester DESC, p.created_at DESC
+        """
+    ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def build_teacher_management_rows(
+    db: sqlite3.Connection,
+    teachers: list[sqlite3.Row | dict[str, Any]],
+    program_options: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    assignments = db.execute(
+        """
+        SELECT
+            pt.teacher_id,
+            p.id AS program_id,
+            p.title AS program_title,
+            p.program_code,
+            p.year,
+            p.semester,
+            p.school_name,
+            p.school_level
+        FROM program_teachers pt
+        JOIN programs p ON p.id = pt.program_id
+        ORDER BY p.year DESC, p.semester DESC, p.created_at DESC
+        """
+    ).fetchall()
+    assignment_map: dict[int, list[dict[str, Any]]] = {}
+    for row in assignments:
+        assignment_map.setdefault(row["teacher_id"], []).append(dict(row))
+
+    rows: list[dict[str, Any]] = []
+    for teacher in teachers:
+        teacher_item = dict(teacher)
+        assigned_programs = assignment_map.get(teacher_item["id"], [])
+        assigned_ids = {program["program_id"] for program in assigned_programs}
+        teacher_item["assigned_programs"] = assigned_programs
+        teacher_item["available_programs"] = [
+            program for program in program_options if program["id"] not in assigned_ids
+        ]
+        rows.append(teacher_item)
+    return rows
+
+
 def query_teacher_assignments(db: sqlite3.Connection) -> list[sqlite3.Row]:
     return db.execute(
         """
@@ -2093,6 +2160,8 @@ def admin_dashboard(request: Request) -> Response:
         return auth
     admin = get_current_admin(request)
     teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
+    program_options = list_program_options(request.db)
+    teacher_management_rows = build_teacher_management_rows(request.db, teachers, program_options)
     teacher_assignments = query_teacher_assignments(request.db)
     template_rows = request.db.execute(
         """
@@ -2115,6 +2184,8 @@ def admin_dashboard(request: Request) -> Response:
         "admin_dashboard.html",
         admin=admin,
         teachers=teachers,
+        teacher_management_rows=teacher_management_rows,
+        program_options=program_options,
         teacher_assignments=teacher_assignments,
         templates=templates,
         programs=programs,
@@ -2183,6 +2254,116 @@ def admin_create_teacher(request: Request) -> Response:
         "success",
     )
     return redirect_response("/admin")
+
+
+@route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/assign")
+def admin_assign_teacher_to_program(request: Request, teacher_id: str) -> Response:
+    auth = require_role(request, "admin")
+    if auth:
+        return auth
+
+    program_id = request.form.get("program_id", "").strip()
+    teacher = request.db.execute(
+        "SELECT id, name FROM teachers WHERE id = ?",
+        (teacher_id,),
+    ).fetchone()
+    program = request.db.execute(
+        "SELECT id, title, program_code FROM programs WHERE id = ?",
+        (program_id,),
+    ).fetchone()
+    if not teacher or not program:
+        set_flash(request.db, request.session["id"], "배정할 강사 또는 캠프 정보를 찾을 수 없습니다.", "error")
+        return redirect_response("/admin#teacher-manage")
+
+    exists = request.db.execute(
+        "SELECT 1 FROM program_teachers WHERE teacher_id = ? AND program_id = ?",
+        (teacher_id, program_id),
+    ).fetchone()
+    if exists:
+        set_flash(request.db, request.session["id"], "이미 배정된 캠프입니다.", "info")
+        return redirect_response("/admin#teacher-manage")
+
+    request.db.execute(
+        """
+        INSERT OR IGNORE INTO program_teachers (program_id, teacher_id, assigned_at)
+        VALUES (?, ?, ?)
+        """,
+        (program_id, teacher_id, now_iso()),
+    )
+    request.db.commit()
+    set_flash(
+        request.db,
+        request.session["id"],
+        f"{teacher['name']} 강사를 {program['title']} ({program['program_code']}) 캠프에 배정했습니다.",
+        "success",
+    )
+    return redirect_response("/admin#teacher-manage")
+
+
+@route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/programs/(?P<program_id>\d+)/remove")
+def admin_remove_teacher_from_program(request: Request, teacher_id: str, program_id: str) -> Response:
+    auth = require_role(request, "admin")
+    if auth:
+        return auth
+
+    teacher = request.db.execute(
+        "SELECT id, name FROM teachers WHERE id = ?",
+        (teacher_id,),
+    ).fetchone()
+    program = request.db.execute(
+        "SELECT id, title, program_code, teacher_id FROM programs WHERE id = ?",
+        (program_id,),
+    ).fetchone()
+    assignment = request.db.execute(
+        "SELECT 1 FROM program_teachers WHERE teacher_id = ? AND program_id = ?",
+        (teacher_id, program_id),
+    ).fetchone()
+    if not teacher or not program or not assignment:
+        set_flash(request.db, request.session["id"], "배정 취소할 정보를 찾을 수 없습니다.", "error")
+        return redirect_response("/admin#teacher-manage")
+
+    assigned_count_row = request.db.execute(
+        "SELECT COUNT(*) AS count FROM program_teachers WHERE program_id = ?",
+        (program_id,),
+    ).fetchone()
+    assigned_count = int(assigned_count_row["count"] if assigned_count_row else 0)
+    if assigned_count <= 1:
+        set_flash(
+            request.db,
+            request.session["id"],
+            "캠프에는 최소 한 명의 강사가 배정되어 있어야 하므로 마지막 강사는 배정 취소할 수 없습니다.",
+            "error",
+        )
+        return redirect_response("/admin#teacher-manage")
+
+    next_teacher = request.db.execute(
+        """
+        SELECT teacher_id
+        FROM program_teachers
+        WHERE program_id = ? AND teacher_id != ?
+        ORDER BY assigned_at ASC
+        LIMIT 1
+        """,
+        (program_id, teacher_id),
+    ).fetchone()
+
+    request.db.execute(
+        "DELETE FROM program_teachers WHERE teacher_id = ? AND program_id = ?",
+        (teacher_id, program_id),
+    )
+    if int(program["teacher_id"]) == int(teacher_id) and next_teacher:
+        request.db.execute(
+            "UPDATE programs SET teacher_id = ? WHERE id = ?",
+            (next_teacher["teacher_id"], program_id),
+        )
+    request.db.commit()
+    set_flash(
+        request.db,
+        request.session["id"],
+        f"{teacher['name']} 강사의 {program['title']} ({program['program_code']}) 배정을 취소했습니다.",
+        "success",
+    )
+    return redirect_response("/admin#teacher-manage")
 
 
 @route("POST", r"/admin/templates")

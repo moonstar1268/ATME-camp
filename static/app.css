@@ -1085,6 +1085,51 @@ code {
   align-self: start;
 }
 
+.assignment-chip-list {
+  display: grid;
+  gap: 10px;
+  min-width: 260px;
+}
+
+.assignment-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dbe7ef;
+  border-radius: 14px;
+  background: #f5f9fc;
+}
+
+.assignment-chip-main {
+  display: grid;
+  gap: 6px;
+}
+
+.assignment-chip-main strong,
+.program-title-stack strong {
+  color: var(--text-main);
+}
+
+.assignment-chip-main small,
+.program-inline-code,
+.dashboard-note {
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.assignment-control {
+  display: grid;
+  gap: 10px;
+  min-width: 220px;
+}
+
+.program-title-stack {
+  display: grid;
+  gap: 6px;
+}
+
 .ghost-button-inline {
   border: 0;
   background: transparent;
@@ -1303,6 +1348,7 @@ code {
   .section-nav,
   .teacher-picker-controls,
   .teacher-chip,
+  .assignment-chip,
   .teacher-assignment-item,
   .reference-choice-row {
     flex-direction: column;
