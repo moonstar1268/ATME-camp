@@ -757,12 +757,12 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 program_id INTEGER NOT NULL,
                 student_name TEXT NOT NULL,
-                student_number TEXT DEFAULT '',
+                student_number TEXT NOT NULL,
                 desired_major TEXT DEFAULT '',
                 answers_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
-                UNIQUE (program_id, student_name),
+                UNIQUE (program_id, student_name, student_number),
                 FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
             );
 
@@ -787,6 +787,7 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
         ensure_template_schema_columns(db)
         ensure_program_schema_columns(db)
         ensure_submission_schema(db)
+        ensure_student_draft_schema(db)
         ensure_program_teacher_schema(db)
         if not skip_bootstrap:
             ensure_bootstrap_data(db)
@@ -911,6 +912,86 @@ def ensure_submission_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_generated_at TEXT")
     if "ai_model" not in columns:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_model TEXT DEFAULT ''")
+    db.commit()
+
+
+def create_student_drafts_table(db: sqlite3.Connection) -> None:
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS student_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            program_id INTEGER NOT NULL,
+            student_name TEXT NOT NULL,
+            student_number TEXT NOT NULL,
+            desired_major TEXT DEFAULT '',
+            answers_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE (program_id, student_name, student_number),
+            FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+
+def ensure_student_draft_schema(db: sqlite3.Connection) -> None:
+    columns = set(db.column_names("student_drafts"))
+    if not columns:
+        create_student_drafts_table(db)
+        db.execute(
+            "INSERT OR IGNORE INTO app_meta (key, value) VALUES (?, ?)",
+            ("student_draft_identity_v2", "1"),
+        )
+        db.commit()
+        return
+
+    migration_flag = db.execute(
+        "SELECT value FROM app_meta WHERE key = ?",
+        ("student_draft_identity_v2",),
+    ).fetchone()
+    if migration_flag and migration_flag["value"] == "1":
+        return
+
+    db.execute("ALTER TABLE student_drafts RENAME TO student_drafts_legacy")
+    create_student_drafts_table(db)
+    legacy_rows = db.execute(
+        """
+        SELECT program_id, student_name, COALESCE(student_number, '') AS student_number,
+               COALESCE(desired_major, '') AS desired_major, answers_json, created_at, updated_at
+        FROM student_drafts_legacy
+        ORDER BY updated_at ASC, created_at ASC
+        """
+    ).fetchall()
+    for row in legacy_rows:
+        student_name = (row["student_name"] or "").strip()
+        student_number = (row["student_number"] or "").strip()
+        if not student_name or not student_number:
+            continue
+        db.execute(
+            """
+            INSERT OR IGNORE INTO student_drafts (
+                program_id, student_name, student_number, desired_major,
+                answers_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                row["program_id"],
+                student_name,
+                student_number,
+                row["desired_major"] or "",
+                row["answers_json"] or "{}",
+                row["created_at"] or now_iso(),
+                row["updated_at"] or now_iso(),
+            ),
+        )
+    db.execute("DROP TABLE student_drafts_legacy")
+    db.execute(
+        """
+        INSERT INTO app_meta (key, value) VALUES (?, ?)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """,
+        ("student_draft_identity_v2", "1"),
+    )
     db.commit()
 
 
@@ -1604,6 +1685,12 @@ def get_student_name_from_session(request: Request) -> str:
     return str((request.session.get("context") or {}).get("student_name", "")).strip()
 
 
+def get_student_number_from_session(request: Request) -> str:
+    if not request.session or request.session["role"] != "student":
+        return ""
+    return str((request.session.get("context") or {}).get("student_number", "")).strip()
+
+
 def collect_student_answers(
     request: Request,
     fields: list[dict[str, Any]],
@@ -1629,15 +1716,16 @@ def get_student_draft(
     db: sqlite3.Connection,
     program_id: int,
     student_name: str,
+    student_number: str,
 ) -> dict[str, Any] | None:
-    if not student_name:
+    if not student_name or not student_number:
         return None
     row = db.execute(
         """
         SELECT * FROM student_drafts
-        WHERE program_id = ? AND student_name = ?
+        WHERE program_id = ? AND student_name = ? AND student_number = ?
         """,
-        (program_id, student_name),
+        (program_id, student_name, student_number),
     ).fetchone()
     if not row:
         return None
@@ -1656,22 +1744,23 @@ def save_student_draft(
     desired_major: str,
     answers_map: dict[str, str],
 ) -> None:
+    if not student_name or not student_number:
+        return
     existing = db.execute(
         """
         SELECT id FROM student_drafts
-        WHERE program_id = ? AND student_name = ?
+        WHERE program_id = ? AND student_name = ? AND student_number = ?
         """,
-        (program_id, student_name),
+        (program_id, student_name, student_number),
     ).fetchone()
     if existing:
         db.execute(
             """
             UPDATE student_drafts
-            SET student_number = ?, desired_major = ?, answers_json = ?, updated_at = ?
+            SET desired_major = ?, answers_json = ?, updated_at = ?
             WHERE id = ?
             """,
             (
-                student_number,
                 desired_major,
                 json_dump(answers_map),
                 now_iso(),
@@ -1704,12 +1793,13 @@ def delete_student_draft(
     *,
     program_id: int,
     student_name: str,
+    student_number: str,
 ) -> None:
-    if not student_name:
+    if not student_name or not student_number:
         return
     db.execute(
-        "DELETE FROM student_drafts WHERE program_id = ? AND student_name = ?",
-        (program_id, student_name),
+        "DELETE FROM student_drafts WHERE program_id = ? AND student_name = ? AND student_number = ?",
+        (program_id, student_name, student_number),
     )
     db.commit()
 
@@ -1717,8 +1807,8 @@ def delete_student_draft(
 def build_student_form_data(
     *,
     student_name: str,
+    student_number: str,
     draft: dict[str, Any] | None = None,
-    student_number: str = "",
     desired_major: str = "",
     answers: dict[str, str] | None = None,
 ) -> dict[str, Any]:
@@ -1741,8 +1831,17 @@ def render_student_form_page(
 ) -> Response:
     question_schema = get_program_form_schema(program)
     student_name = (form_data or {}).get("student_name") or get_student_name_from_session(request)
-    draft = get_student_draft(request.db, int(program["id"]), student_name) if student_name else None
-    resolved_form_data = form_data or build_student_form_data(student_name=student_name, draft=draft)
+    student_number = (form_data or {}).get("student_number") or get_student_number_from_session(request)
+    draft = (
+        get_student_draft(request.db, int(program["id"]), student_name, student_number)
+        if student_name and student_number
+        else None
+    )
+    resolved_form_data = form_data or build_student_form_data(
+        student_name=student_name,
+        student_number=student_number,
+        draft=draft,
+    )
     return render_template(
         request,
         "student_form.html",
@@ -1753,6 +1852,7 @@ def render_student_form_page(
         error=error,
         form_data=resolved_form_data,
         student_name=student_name,
+        student_number=student_number,
         has_saved_draft=bool(draft),
         draft_updated_at=draft["updated_at"] if draft else "",
     )
@@ -3038,7 +3138,7 @@ def student_form(request: Request) -> Response:
     program = get_program_with_teacher(request.db, int(request.session["program_id"]))
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
-    if not get_student_name_from_session(request):
+    if not get_student_name_from_session(request) or not get_student_number_from_session(request):
         return redirect_response("/student/start")
     return render_student_form_page(
         request,
@@ -3056,14 +3156,20 @@ def student_start(request: Request) -> Response:
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
     student_name = get_student_name_from_session(request)
-    if student_name and request.query.get("change", "") != "1":
+    student_number = get_student_number_from_session(request)
+    if student_name and student_number and request.query.get("change", "") != "1":
         return redirect_response("/student")
-    draft = get_student_draft(request.db, int(program["id"]), student_name) if student_name else None
+    draft = (
+        get_student_draft(request.db, int(program["id"]), student_name, student_number)
+        if student_name and student_number
+        else None
+    )
     return render_template(
         request,
         "student_start.html",
         program=program,
         student_name=student_name,
+        student_number=student_number,
         draft_exists=bool(draft),
         draft_updated_at=draft["updated_at"] if draft else "",
         error="",
@@ -3079,28 +3185,30 @@ def student_start_submit(request: Request) -> Response:
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
     student_name = request.form.get("student_name", "").strip()
-    if not student_name:
+    student_number = request.form.get("student_number", "").strip()
+    if not student_name or not student_number:
         return render_template(
             request,
             "student_start.html",
             program=program,
-            student_name="",
+            student_name=student_name,
+            student_number=student_number,
             draft_exists=False,
             draft_updated_at="",
-            error="이름을 입력해 주세요.",
+            error="이름과 학번을 모두 입력해 주세요.",
         )
 
     updated_context = update_session_context(
         request.db,
         request.session["id"],
-        {"student_name": student_name},
+        {"student_name": student_name, "student_number": student_number},
     )
     if request.session:
         request.session["context"] = updated_context
 
-    draft = get_student_draft(request.db, int(program["id"]), student_name)
+    draft = get_student_draft(request.db, int(program["id"]), student_name, student_number)
     if draft:
-        set_flash(request.db, request.session["id"], "이전에 임시저장한 내용을 불러왔습니다.", "info")
+        set_flash(request.db, request.session["id"], "같은 이름과 학번으로 임시저장한 내용을 불러왔습니다.", "info")
     return redirect_response("/student")
 
 
@@ -3117,17 +3225,16 @@ def student_save_draft_action(request: Request) -> Response:
         return redirect_response("/student")
 
     student_name = get_student_name_from_session(request)
-    if not student_name:
+    student_number = get_student_number_from_session(request)
+    if not student_name or not student_number:
         return redirect_response("/student/start")
 
     question_schema = get_program_form_schema(program)
     fields = question_schema["flat_fields"]
-    student_number = request.form.get("student_number", "").strip()
     desired_major = request.form.get("desired_major", "").strip()
     _, answers_map = collect_student_answers(request, fields)
     has_content = bool(
-        student_number
-        or desired_major
+        desired_major
         or any((value or "").strip() for value in answers_map.values())
     )
     if not has_content:
@@ -3145,7 +3252,7 @@ def student_save_draft_action(request: Request) -> Response:
     set_flash(
         request.db,
         request.session["id"],
-        "임시저장되었습니다. 같은 이름으로 다시 들어오면 이어서 작성할 수 있습니다.",
+        "임시저장되었습니다. 같은 이름과 학번으로 다시 들어오면 이어서 작성할 수 있습니다.",
         "success",
     )
     return redirect_response("/student")
@@ -3160,7 +3267,8 @@ def student_submit(request: Request) -> Response:
     if not program:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
     student_name = get_student_name_from_session(request)
-    if not student_name:
+    student_number = get_student_number_from_session(request)
+    if not student_name or not student_number:
         return redirect_response("/student/start")
     if program["status"] != "collecting":
         return render_student_form_page(
@@ -3172,7 +3280,6 @@ def student_submit(request: Request) -> Response:
 
     question_schema = get_program_form_schema(program)
     fields = question_schema["flat_fields"]
-    student_number = request.form.get("student_number", "").strip()
     desired_major = request.form.get("desired_major", "").strip()
 
     answers, answers_map = collect_student_answers(request, fields)
@@ -3264,6 +3371,7 @@ def student_submit(request: Request) -> Response:
         request.db,
         program_id=int(program["id"]),
         student_name=student_name,
+        student_number=student_number,
     )
     saved_submission = None
     if saved_submission_id and openai_is_configured():

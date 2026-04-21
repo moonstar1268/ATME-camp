@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}학생 이름 확인 | AFE{% endblock %}
+{% block title %}학생 정보 확인 | AFE{% endblock %}
 
 {% block content %}
   <section class="auth-shell">
     <article class="panel-card student-start-card">
       <div class="panel-heading">
         <p class="eyebrow">STUDENT START</p>
-        <h1>이름을 먼저 확인해 주세요</h1>
-        <p>같은 이름으로 다시 들어오면 임시저장한 질문지를 이어서 작성할 수 있습니다.</p>
+        <h1>이름과 학번을 먼저 확인해 주세요</h1>
+        <p>같은 이름과 학번으로 다시 들어오면 임시저장한 질문지를 이어서 작성할 수 있습니다.</p>
       </div>
 
       {% if error %}
@@ -40,9 +40,20 @@
             required
           />
         </label>
+        <label>
+          <span>학번</span>
+          <input
+            type="text"
+            name="student_number"
+            value="{{ student_number }}"
+            placeholder="예: 30101"
+            inputmode="numeric"
+            required
+          />
+        </label>
 
         {% if draft_exists and draft_updated_at %}
-          <p class="student-form-status">이 이름으로 저장된 임시저장이 있습니다. 마지막 저장: {{ format_datetime(draft_updated_at) }}</p>
+          <p class="student-form-status">같은 이름과 학번으로 저장된 임시저장이 있습니다. 마지막 저장: {{ format_datetime(draft_updated_at) }}</p>
         {% endif %}
 
         <div class="submit-complete-actions compact-top">

@@ -56,30 +56,23 @@
       <div class="surface-subcard">
         <div class="section-title">
           <h3>기본 정보</h3>
-          <p>이름은 첫 단계에서 확인된 값을 사용합니다. 이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.</p>
+          <p>이름과 학번은 첫 단계에서 확인된 값을 사용합니다. 이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.</p>
         </div>
         <div class="student-identity-card compact-top">
           <div>
             <span>이름</span>
             <strong>{{ student_name }}</strong>
           </div>
-          <a href="/student/start?change=1" class="ghost-link">이름 다시 입력</a>
+          <div>
+            <span>학번</span>
+            <strong>{{ student_number }}</strong>
+          </div>
+          <a href="/student/start?change=1" class="ghost-link">이름/학번 다시 입력</a>
         </div>
         {% if has_saved_draft and draft_updated_at %}
           <p class="student-form-status">마지막 임시저장: {{ format_datetime(draft_updated_at) }}</p>
         {% endif %}
         <div class="grid-form compact-top">
-          <label>
-            <span>학번</span>
-            <input
-              type="text"
-              name="student_number"
-              value="{{ form_data.student_number }}"
-              placeholder="예: 30101"
-              {% if is_locked %}disabled{% endif %}
-              required
-            />
-          </label>
           <label class="span-two">
             <span>희망전공 (학과)</span>
             <input
@@ -137,7 +130,7 @@
       <div class="form-footer-card">
         <div>
           <strong>저장 및 제출</strong>
-          <p>임시저장 후 같은 이름으로 다시 들어오면 이어서 작성할 수 있으며, 제출 후에는 강사가 내용을 확인합니다.</p>
+          <p>임시저장 후 같은 이름과 학번으로 다시 들어오면 이어서 작성할 수 있으며, 제출 후에는 강사가 내용을 확인합니다.</p>
         </div>
         <div class="form-footer-actions">
           <button
