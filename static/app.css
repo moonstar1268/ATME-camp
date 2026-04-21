@@ -580,6 +580,11 @@ textarea:focus {
   gap: 20px;
 }
 
+.teacher-manage-stack {
+  display: grid;
+  gap: 20px;
+}
+
 .section-title {
   display: grid;
   gap: 6px;
