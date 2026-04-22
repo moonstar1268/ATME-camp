@@ -727,135 +727,138 @@ button:disabled {
   align-items: stretch;
 }
 
-.login-wireframe-shell {
-  width: min(1180px, calc(100vw - 48px));
-  margin: 24px auto 0;
+.login-stage-shell {
+  width: min(980px, calc(100vw - 40px));
+  margin: 32px auto 0;
   display: grid;
-  gap: 18px;
-  justify-items: center;
+  gap: 20px;
 }
 
-.login-wireframe-header {
-  text-align: center;
+.login-stage-header {
   display: grid;
   gap: 10px;
+  justify-items: center;
+  text-align: center;
 }
 
-.login-wireframe-header h1 {
+.login-stage-header h1 {
   margin: 0;
-  font-size: clamp(1.9rem, 3vw, 2.6rem);
-  line-height: 1.12;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.08;
 }
 
-.login-wireframe-tabs {
-  width: min(1080px, 100%);
-  gap: 0;
+.login-stage-lead {
+  margin: 0;
+  max-width: 720px;
+  color: var(--text-soft);
+  font-size: 1rem;
 }
 
-.login-wireframe-tablist {
-  width: min(900px, calc(100% - 160px));
-  margin: 0 auto -1px;
-  padding: 14px 18px;
-  border: 3px solid #163042;
+.login-stage-card {
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top right, rgba(31, 111, 214, 0.08), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f7fafc 100%);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.login-stage-tabbar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px 22px 0;
+  background: transparent;
+}
+
+.login-stage-card .tab-button {
+  min-height: 56px;
+  border: 1px solid var(--border-strong);
   border-bottom: none;
-  border-radius: 24px 24px 0 0;
-  background: #ffffff;
-}
-
-.login-wireframe-tablist .tab-button {
-  min-height: 58px;
-  border: 3px solid #163042;
-  border-radius: 0;
-  background: #ffffff;
-  color: #102135;
-  font-size: 1.1rem;
+  border-radius: 18px 18px 0 0;
+  background: #eef3f8;
+  color: #415469;
+  font-size: 1.06rem;
   font-weight: 700;
   box-shadow: none;
 }
 
-.login-wireframe-tablist .tab-button.is-active {
-  background: #f4f8fb;
-}
-
-.login-wireframe-panel {
-  padding: 0;
-  border: 3px solid #163042;
-  border-radius: 0;
+.login-stage-card .tab-button.is-active {
   background: #ffffff;
-  min-height: 520px;
+  color: var(--text);
 }
 
-.login-wireframe-form {
-  min-height: 520px;
+.login-stage-card .tab-panel {
+  padding: 32px 34px 28px;
+  border: none;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  min-height: 380px;
+}
+
+.login-stage-form {
+  min-height: 320px;
   display: grid;
   grid-template-rows: 1fr auto;
+  gap: 24px;
 }
 
-.login-wireframe-body {
-  display: grid;
-  gap: 34px;
-  align-content: center;
-  width: min(900px, calc(100% - 120px));
+.login-stage-body {
+  width: min(760px, 100%);
   margin: 0 auto;
-  padding: 56px 0;
-}
-
-.login-wireframe-row {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  align-items: center;
-  gap: 22px;
+  gap: 28px;
+  align-content: center;
 }
 
-.login-wireframe-row-single {
-  grid-template-columns: 1fr;
+.login-stage-field {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  align-items: center;
   gap: 18px;
 }
 
-.login-wireframe-row span {
-  font-size: 2rem;
-  font-weight: 500;
-  color: #102135;
+.login-stage-field-single {
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
-.login-wireframe-row input {
-  min-height: 78px;
-  border: 3px solid #163042;
-  border-radius: 0;
-  padding: 0 28px;
-  font-size: 1.2rem;
+.login-stage-field span {
+  color: var(--text);
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.login-stage-field input {
+  min-height: 64px;
+  border-radius: 16px;
+  border: 1px solid var(--border-strong);
+  background: #ffffff;
+  padding: 0 20px;
+  font-size: 1.06rem;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+}
+
+.login-stage-field-single input {
   text-align: center;
-  box-shadow: none;
 }
 
-.login-wireframe-row input::placeholder {
-  color: #4f6577;
+.login-stage-helper {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 0.98rem;
 }
 
-.login-wireframe-row input:focus {
-  border-color: #163042;
-  box-shadow: 0 0 0 5px rgba(22, 48, 66, 0.08);
-}
-
-.login-wireframe-actions {
+.login-stage-actions {
   display: flex;
   justify-content: flex-end;
-  padding: 0 18px 18px;
 }
 
-.login-wireframe-submit {
-  min-width: 176px;
-  min-height: 112px;
-  border: 3px solid #163042;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #102135;
-  font-size: 2rem;
-  font-weight: 500;
-}
-
-.login-wireframe-submit:hover {
-  background: #f4f8fb;
+.login-stage-actions .primary-button {
+  min-width: 132px;
 }
 
 .login-side,
@@ -1389,55 +1392,55 @@ button:disabled {
     padding: 22px;
   }
 
-  .login-wireframe-shell {
+  .login-stage-shell {
     width: calc(100vw - 24px);
   }
 
-  .login-wireframe-tablist {
-    width: 100%;
-    padding: 10px;
-    border-radius: 18px 18px 0 0;
+  .login-stage-tabbar {
+    padding: 16px 16px 0;
   }
 
-  .login-wireframe-tablist .tab-button {
+  .login-stage-card .tab-button {
     min-height: 48px;
-    font-size: 1rem;
+    font-size: 0.98rem;
   }
 
-  .login-wireframe-panel,
-  .login-wireframe-form {
+  .login-stage-card .tab-panel,
+  .login-stage-form {
     min-height: auto;
   }
 
-  .login-wireframe-body {
-    width: calc(100% - 40px);
-    padding: 34px 0 26px;
+  .login-stage-card .tab-panel {
+    padding: 24px 18px 20px;
   }
 
-  .login-wireframe-row {
+  .login-stage-body {
+    width: 100%;
+    gap: 18px;
+  }
+
+  .login-stage-field {
     grid-template-columns: 1fr;
     gap: 10px;
   }
 
-  .login-wireframe-row span {
-    font-size: 1.25rem;
+  .login-stage-field span {
+    font-size: 1.05rem;
   }
 
-  .login-wireframe-row input {
-    min-height: 60px;
+  .login-stage-field input,
+  .login-stage-field-single input {
+    min-height: 56px;
     font-size: 1rem;
     text-align: left;
   }
 
-  .login-wireframe-actions {
+  .login-stage-actions {
     justify-content: center;
-    padding: 0 0 20px;
   }
 
-  .login-wireframe-submit {
-    min-width: 140px;
-    min-height: 72px;
-    font-size: 1.4rem;
+  .login-stage-actions .primary-button {
+    width: 100%;
   }
 
   .workspace-topbar {
