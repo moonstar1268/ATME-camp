@@ -6,43 +6,86 @@
     <title>{% block title %}AFE 캠프 산출물 관리 시스템{% endblock %}</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
-  <body class="{% block body_class %}{% endblock %}">
-    <div class="app-shell">
-      <header class="topbar">
-        <a
-          href="{% if request.session and request.session.role == 'admin' %}/admin{% elif request.session and request.session.role == 'teacher' %}/teacher{% elif request.session and request.session.role == 'student' %}/student{% else %}/{% endif %}"
-          class="brand"
-        >
-          <span class="brand-kicker">AFE CAMP</span>
-          <strong>산출물 관리 시스템</strong>
-        </a>
+  <body class="{% block body_class %}{% endblock %} role-{{ shell.role or 'guest' }}">
+    {% set page_content %}
+      {% block content %}{% endblock %}
+    {% endset %}
 
-        <nav class="topbar-nav">
-          {% if request.session and request.session.role == "admin" %}
-            <a href="/admin">관리자 대시보드</a>
-          {% elif request.session and request.session.role == "teacher" %}
-            <a href="/teacher">강사 대시보드</a>
-          {% elif request.session and request.session.role == "student" %}
-            <a href="/student">학생 작성 화면</a>
+    {% if shell.authenticated %}
+      <div class="dashboard-shell">
+        <aside class="app-sidebar">
+          <a
+            href="{% if request.session.role == 'admin' %}/admin{% elif request.session.role == 'teacher' %}/teacher{% else %}/student/start{% endif %}"
+            class="sidebar-brand"
+          >
+            <span class="sidebar-brand-kicker">AFE CAMP</span>
+            <strong>산출물 관리 시스템</strong>
+          </a>
+
+          <div class="sidebar-role-chip">{{ shell.role_label }}</div>
+
+          <nav class="sidebar-nav">
+            {% for group in shell.nav_groups %}
+              <div class="sidebar-group">
+                <p class="sidebar-group-label">{{ group.label }}</p>
+                {% for item in group.items %}
+                  <a href="{{ item.href }}" class="sidebar-link {% if item.is_active %}is-active{% endif %}">
+                    {{ item.label }}
+                  </a>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </nav>
+
+          <div class="sidebar-user-card">
+            <p class="sidebar-user-label">{{ shell.role_label }}</p>
+            <strong>{{ shell.user_name or "사용자" }}</strong>
+            {% if shell.user_detail %}
+              <span>{{ shell.user_detail }}</span>
+            {% endif %}
+            <a href="/logout" class="secondary-button sidebar-logout">로그아웃</a>
+          </div>
+        </aside>
+
+        <div class="workspace-shell">
+          <header class="workspace-topbar">
+            <div>
+              <p class="workspace-eyebrow">{{ shell.role_label }} WORKSPACE</p>
+              <h1>{{ shell.page_title }}</h1>
+              {% if shell.page_description %}
+                <p class="workspace-description">{{ shell.page_description }}</p>
+              {% endif %}
+            </div>
+            <div class="workspace-actions">
+              {% block workspace_actions %}{% endblock %}
+            </div>
+          </header>
+
+          <main class="workspace-content">
+            {% if flash %}
+              <div class="flash flash-{{ flash.tone }}">{{ flash.message }}</div>
+            {% endif %}
+            {{ page_content }}
+          </main>
+        </div>
+      </div>
+    {% else %}
+      <div class="auth-page-shell">
+        <header class="auth-topbar">
+          <a href="/" class="auth-brand">
+            <span class="sidebar-brand-kicker">AFE CAMP</span>
+            <strong>산출물 관리 시스템</strong>
+          </a>
+        </header>
+
+        <main class="auth-page-content">
+          {% if flash %}
+            <div class="flash flash-{{ flash.tone }}">{{ flash.message }}</div>
           {% endif %}
-
-          {% if request.session %}
-            <a href="/logout" class="ghost-link">로그아웃</a>
-          {% else %}
-            <a href="/" class="ghost-link">첫 페이지</a>
-            <a href="/?role=admin" class="ghost-link">관리자 로그인</a>
-          {% endif %}
-        </nav>
-      </header>
-
-      {% if flash %}
-        <div class="flash flash-{{ flash.tone }}">{{ flash.message }}</div>
-      {% endif %}
-
-      <main class="page-content">
-        {% block content %}{% endblock %}
-      </main>
-    </div>
+          {{ page_content }}
+        </main>
+      </div>
+    {% endif %}
 
     <script src="/static/app.js"></script>
   </body>

@@ -1,66 +1,68 @@
 {% extends "base.html" %}
 
-{% block title %}학생 정보 확인 | AFE{% endblock %}
+{% block title %}참여 프로그램 / 학생 정보 입력 | AFE{% endblock %}
 
 {% block content %}
-  <section class="auth-shell">
-    <article class="panel-card student-start-card">
-      <div class="panel-heading">
-        <p class="eyebrow">STUDENT START</p>
-        <h1>이름과 학번을 먼저 확인해 주세요</h1>
-        <p>같은 이름과 학번으로 다시 들어오면 임시저장한 질문지를 이어서 작성할 수 있습니다.</p>
+  <section class="page-section">
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <p class="section-kicker">STEP 1</p>
+          <h2>참여 프로그램 / 학생 정보 입력</h2>
+          <p class="card-description">
+            프로그램 정보를 먼저 확인하고, 임시저장과 제출 내용을 이어받기 위한 이름과 학번을 입력해 주세요.
+          </p>
+        </div>
       </div>
 
       {% if error %}
         <div class="flash flash-error">{{ error }}</div>
       {% endif %}
 
-      <div class="surface-subcard compact-top">
-        <div class="section-title">
-          <h3>참여 프로그램</h3>
-          <p>코드로 입장한 캠프 정보를 먼저 확인해 주세요.</p>
-        </div>
-        <div class="meta-grid compact-top">
-          <div><span>프로그램명</span><strong>{{ program.title }}</strong></div>
-          <div><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
-          <div><span>학교명</span><strong>{{ program.school_name }}</strong></div>
-          <div><span>학년도/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
-        </div>
-      </div>
+      <form action="/student/start" method="post" class="stack-form">
+        <section class="info-section-card">
+          <div class="section-head">
+            <h3>참여 프로그램</h3>
+            <p>운영진이 개설한 캠프의 기본 정보를 확인합니다.</p>
+          </div>
+          <div class="info-grid">
+            <div class="info-item"><span>프로그램명</span><strong>{{ program.title }}</strong></div>
+            <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
+            <div class="info-item"><span>회차명</span><strong>{{ program.template_name }}</strong></div>
+            <div class="info-item"><span>학년/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
+            <div class="info-item"><span>학교명</span><strong>{{ program.school_name }}</strong></div>
+            <div class="info-item"><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
+          </div>
+        </section>
 
-      <form action="/student/start" method="post" class="stack-form compact-top">
-        <label>
-          <span>이름</span>
-          <input
-            type="text"
-            name="student_name"
-            value="{{ student_name }}"
-            placeholder="예: 홍길동"
-            autocomplete="name"
-            required
-          />
-        </label>
-        <label>
-          <span>학번</span>
-          <input
-            type="text"
-            name="student_number"
-            value="{{ student_number }}"
-            placeholder="예: 30101"
-            inputmode="numeric"
-            required
-          />
-        </label>
+        <section class="info-section-card">
+          <div class="section-head">
+            <h3>학생 정보 입력</h3>
+            <p>동명이인 구분을 위해 이름과 학번을 함께 확인합니다.</p>
+          </div>
+          <div class="form-grid">
+            <label class="form-field">
+              <span>학생명</span>
+              <input type="text" name="student_name" value="{{ student_name }}" placeholder="예: 홍길동" autocomplete="name" required />
+            </label>
+            <label class="form-field">
+              <span>학번</span>
+              <input type="text" name="student_number" value="{{ student_number }}" placeholder="예: 30101" inputmode="numeric" required />
+            </label>
+          </div>
 
-        {% if draft_exists and draft_updated_at %}
-          <p class="student-form-status">같은 이름과 학번으로 저장된 임시저장이 있습니다. 마지막 저장: {{ format_datetime(draft_updated_at) }}</p>
-        {% endif %}
+          {% if draft_exists and draft_updated_at %}
+            <p class="student-form-status">
+              같은 이름과 학번으로 저장된 임시저장이 있습니다. 마지막 저장 시각은 {{ format_datetime(draft_updated_at) }}입니다.
+            </p>
+          {% endif %}
+        </section>
 
-        <div class="submit-complete-actions compact-top">
+        <div class="page-actions">
           <a href="/" class="secondary-button">처음으로</a>
-          <button type="submit" class="primary-button student">질문지 작성으로 이동</button>
+          <button type="submit" class="primary-button student">질문지 이동</button>
         </div>
       </form>
-    </article>
+    </div>
   </section>
 {% endblock %}

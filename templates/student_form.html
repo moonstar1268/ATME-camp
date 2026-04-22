@@ -1,150 +1,220 @@
 {% extends "base.html" %}
 
-{% block title %}학생 질문지 작성 | AFE{% endblock %}
+{% block title %}자기평가 질문지 / 탐구내용 작성 | AFE{% endblock %}
 
 {% block content %}
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">STUDENT ENTRY</p>
-      <h1>{{ program.title }}</h1>
-      <p>{{ program.school_name }} · {{ program.school_level }} · {{ program.year }} {{ program.semester }}</p>
-    </div>
-    <div class="header-actions">
-      <div class="code-pill">프로그램 코드 {{ program.program_code }}</div>
-    </div>
-  </section>
+  {% set intro_ids = ['linked_subject_1', 'linked_unit_1', 'linked_subject_2', 'linked_unit_2', 'career_goal', 'career_major'] %}
+  {% set keyword_id = 'keywords' %}
+  {% set body_counter = namespace(value=0) %}
+  {% set keyword_found = namespace(value=false) %}
 
   {% if error %}
     <div class="flash flash-error">{{ error }}</div>
   {% endif %}
 
   {% if is_locked %}
-    <div class="flash flash-info">현재 이 프로그램은 학생 입력을 받지 않는 상태입니다. 강사 또는 관리자에게 문의해 주세요.</div>
+    <div class="flash flash-info">
+      현재 이 프로그램은 학생 입력이 마감된 상태입니다. 강사 또는 관리자에게 문의해 주세요.
+    </div>
   {% endif %}
 
-  <section class="surface-card">
-    <div class="section-title">
-      <h2>학생 질문지 작성</h2>
-      <p>캠프 정보를 확인하고 아래 문항에 답변을 입력해 주세요.</p>
-    </div>
-
-    <form action="/student/submit" method="post" class="stack-form compact-top">
-      <div class="surface-subcard">
-        <div class="section-title">
-          <h3>캠프 정보</h3>
-          <p>학생이 현재 참여 중인 캠프 정보를 한눈에 확인할 수 있도록 정리했습니다.</p>
-        </div>
-        <div class="meta-grid compact-top">
-          <div><span>학교명</span><strong>{{ program.school_name }}</strong></div>
-          <div><span>교급</span><strong>{{ program.school_level }}</strong></div>
-          <div><span>학년도/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
-          <div><span>프로그램명</span><strong>{{ program.title }}</strong></div>
-          <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
-          <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
-        </div>
-        {% if question_schema.report_reference %}
-          <div class="report-reference-card compact-top">
-            <p class="section-kicker">연계 보고서</p>
-            <strong>{{ question_schema.report_reference }}</strong>
-            {% if question_schema.report_summary %}
-              <p>{{ question_schema.report_summary }}</p>
-            {% endif %}
-          </div>
-        {% endif %}
-      </div>
-
-      <div class="surface-subcard">
-        <div class="section-title">
-          <h3>기본 정보</h3>
-          <p>이름과 학번은 첫 단계에서 확인된 값을 사용합니다. 이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.</p>
-        </div>
-        <div class="student-identity-card compact-top">
+  <form action="/student/submit" method="post" class="stack-form" id="student-questionnaire-form">
+    <section class="page-section">
+      <div class="card">
+        <div class="card-header">
           <div>
-            <span>이름</span>
-            <strong>{{ student_name }}</strong>
+            <p class="section-kicker">STEP 2</p>
+            <h2>자기평가 질문지 / 탐구내용</h2>
+            <p class="card-description">
+              교과 연계 정보와 핵심 키워드를 먼저 정리한 뒤, 탐구 내용을 구조적으로 작성할 수 있도록 구성했습니다.
+            </p>
           </div>
-          <div>
-            <span>학번</span>
-            <strong>{{ student_number }}</strong>
-          </div>
-          <a href="/student/start?change=1" class="ghost-link">이름/학번 다시 입력</a>
         </div>
-        {% if has_saved_draft and draft_updated_at %}
-          <p class="student-form-status">마지막 임시저장: {{ format_datetime(draft_updated_at) }}</p>
-        {% endif %}
-        <div class="grid-form compact-top">
-          <label class="span-two">
-            <span>희망전공 (학과)</span>
-            <input
-              type="text"
-              name="desired_major"
-              value="{{ form_data.desired_major }}"
-              placeholder="예: 화학공학과"
-              {% if is_locked %}disabled{% endif %}
-              required
-            />
-          </label>
-        </div>
-      </div>
 
-      {% for section in question_schema.sections %}
-        <section class="question-section-card">
-          <div class="section-title">
-            <p class="section-kicker">Section {{ loop.index }}</p>
-            <h3>{{ section.title }}</h3>
-            {% if section.description %}
-              <p>{{ section.description }}</p>
-            {% endif %}
+        <section class="info-section-card">
+          <div class="section-head">
+            <h3>캠프 정보</h3>
+            <p>현재 작성 중인 프로그램의 기본 정보를 확인합니다.</p>
           </div>
-          <div class="structured-fields compact-top">
-            {% for field in section.fields %}
-              <label class="surface-subcard">
-                <span>{{ field.label }}</span>
-                {% if field.hint %}
-                  <small class="form-hint">{{ field.hint }}</small>
-                {% endif %}
-                {% if field.type == "text" %}
-                  <input
-                    type="text"
-                    name="{{ field.id }}"
-                    value="{{ form_data.answers.get(field.id, '') }}"
-                    placeholder="{{ field.placeholder }}"
-                    {% if is_locked %}disabled{% endif %}
-                    {% if field.required %}required{% endif %}
-                  />
-                {% else %}
-                  <textarea
-                    name="{{ field.id }}"
-                    rows="{{ field.rows }}"
-                    placeholder="{{ field.placeholder }}"
-                    {% if is_locked %}disabled{% endif %}
-                    {% if field.required %}required{% endif %}
-                  >{{ form_data.answers.get(field.id, '') }}</textarea>
-                {% endif %}
-              </label>
-            {% endfor %}
+          <div class="info-grid">
+            <div class="info-item"><span>프로그램명</span><strong>{{ program.title }}</strong></div>
+            <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
+            <div class="info-item"><span>회차명</span><strong>{{ program.template_name }}</strong></div>
+            <div class="info-item"><span>학년/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
+            <div class="info-item"><span>학생명</span><strong>{{ student_name }}</strong></div>
+            <div class="info-item"><span>학번</span><strong>{{ student_number }}</strong></div>
+            <div class="info-item"><span>학교명</span><strong>{{ program.school_name }}</strong></div>
+            <div class="info-item"><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
           </div>
         </section>
-      {% endfor %}
 
-      <div class="form-footer-card">
-        <div>
-          <strong>저장 및 제출</strong>
-          <p>임시저장 후 같은 이름과 학번으로 다시 들어오면 이어서 작성할 수 있으며, 제출 후에는 강사가 내용을 확인합니다.</p>
+        <div class="student-question-layout">
+          <div class="student-question-main">
+            <section class="info-section-card">
+              <div class="section-head">
+                <h3>학생 정보 / 교과 연계</h3>
+                <p>이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.</p>
+              </div>
+
+              <div class="form-grid">
+                <label class="form-field field-span-2">
+                  <span>희망전공</span>
+                  <input
+                    type="text"
+                    name="desired_major"
+                    value="{{ form_data.desired_major }}"
+                    placeholder="예: 화학공학과"
+                    {% if is_locked %}disabled{% endif %}
+                    required
+                  />
+                </label>
+
+                {% for field in question_schema.flat_fields %}
+                  {% if field.id in intro_ids %}
+                    <label class="form-field">
+                      <span>{{ field.label }}</span>
+                      <input
+                        type="text"
+                        name="{{ field.id }}"
+                        value="{{ form_data.answers.get(field.id, '') }}"
+                        placeholder="{{ field.placeholder }}"
+                        {% if is_locked %}disabled{% endif %}
+                        {% if field.required %}required{% endif %}
+                      />
+                    </label>
+                  {% endif %}
+                {% endfor %}
+              </div>
+
+              <div class="student-identity-inline">
+                <span>학생 식별 정보</span>
+                <strong>{{ student_name }} / {{ student_number }}</strong>
+                <a href="/student/start?change=1" class="ghost-link">이름·학번 다시 입력</a>
+              </div>
+
+              {% if has_saved_draft and draft_updated_at %}
+                <p class="student-form-status">마지막 임시저장 시각: {{ format_datetime(draft_updated_at) }}</p>
+              {% endif %}
+            </section>
+
+            {% for field in question_schema.flat_fields %}
+              {% if field.id not in intro_ids and field.id != keyword_id %}
+                {% set body_counter.value = body_counter.value + 1 %}
+                <section class="question-block-card">
+                  <div class="section-head">
+                    <h3>탐구내용 {{ body_counter.value }}</h3>
+                    <p>{{ field.label }}</p>
+                  </div>
+
+                  {% if field.hint %}
+                    <p class="form-hint">{{ field.hint }}</p>
+                  {% endif %}
+
+                  {% if field.type == "text" %}
+                    <input
+                      type="text"
+                      name="{{ field.id }}"
+                      value="{{ form_data.answers.get(field.id, '') }}"
+                      placeholder="{{ field.placeholder }}"
+                      {% if is_locked %}disabled{% endif %}
+                      {% if field.required %}required{% endif %}
+                    />
+                  {% else %}
+                    <textarea
+                      name="{{ field.id }}"
+                      rows="{{ field.rows }}"
+                      placeholder="{{ field.placeholder }}"
+                      {% if is_locked %}disabled{% endif %}
+                      {% if field.required %}required{% endif %}
+                    >{{ form_data.answers.get(field.id, '') }}</textarea>
+                  {% endif %}
+                </section>
+              {% endif %}
+            {% endfor %}
+          </div>
+
+          <aside class="student-question-side">
+            <section class="keyword-editor-card">
+              <div class="section-head">
+                <h3>탐구 키워드</h3>
+                <p>추가/삭제로 핵심 키워드를 정리해 주세요.</p>
+              </div>
+
+              {% for field in question_schema.flat_fields %}
+                {% if field.id == keyword_id %}
+                  {% set keyword_found.value = true %}
+                  <div class="keyword-editor" data-keyword-editor>
+                    <input type="hidden" name="{{ field.id }}" value="{{ form_data.answers.get(field.id, '') }}" data-keyword-value />
+                    <div class="keyword-controls">
+                      <input type="text" placeholder="키워드 입력" data-keyword-input {% if is_locked %}disabled{% endif %} />
+                      <button type="button" class="secondary-button compact-button" data-keyword-add {% if is_locked %}disabled{% endif %}>추가</button>
+                    </div>
+                    <div class="keyword-chip-list" data-keyword-list></div>
+                    <div class="keyword-actions">
+                      <button type="button" class="ghost-button-inline" data-keyword-clear {% if is_locked %}disabled{% endif %}>전체 삭제</button>
+                    </div>
+                  </div>
+                {% endif %}
+              {% endfor %}
+              {% if not keyword_found.value %}
+                <div class="empty-state compact-empty">
+                  <p>이 유형에는 별도 키워드 필드가 연결되어 있지 않습니다.</p>
+                </div>
+              {% endif %}
+            </section>
+
+            {% if question_schema.report_reference %}
+              <section class="info-section-card">
+                <div class="section-head">
+                  <h3>연계 보고서</h3>
+                  <p>질문지와 연결된 보고서 템플릿 정보입니다.</p>
+                </div>
+                <div class="info-item is-stacked">
+                  <span>보고서명</span>
+                  <strong>{{ question_schema.report_reference }}</strong>
+                </div>
+                {% if question_schema.report_summary %}
+                  <p class="card-description compact-top">{{ question_schema.report_summary }}</p>
+                {% endif %}
+              </section>
+            {% endif %}
+          </aside>
         </div>
-        <div class="form-footer-actions">
-          <button
-            type="submit"
-            formaction="/student/draft"
-            formmethod="post"
-            class="secondary-button"
-            {% if is_locked %}disabled{% endif %}
-          >
-            임시저장
-          </button>
-          <button type="submit" class="primary-button student" {% if is_locked %}disabled{% endif %}>제출하기</button>
+
+        <div class="page-actions">
+          <button type="submit" formaction="/student/draft" formmethod="post" class="secondary-button" {% if is_locked %}disabled{% endif %}>임시저장</button>
+          <button type="button" class="primary-button student" data-student-review-open {% if is_locked %}disabled{% endif %}>제출하기</button>
+          <button type="submit" class="hidden-submit" hidden data-student-submit-confirm {% if is_locked %}disabled{% endif %}>제출하기</button>
         </div>
       </div>
-    </form>
-  </section>
+    </section>
+
+    <dialog class="app-modal" id="student-review-modal" data-modal>
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="section-kicker">REVIEW</p>
+            <h3>제출 확인</h3>
+          </div>
+          <button type="button" class="modal-close" data-modal-close>닫기</button>
+        </div>
+
+        <div class="modal-grid">
+          <div class="info-item"><span>프로그램명</span><strong>{{ program.title }}</strong></div>
+          <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
+          <div class="info-item"><span>회차명</span><strong>{{ program.template_name }}</strong></div>
+          <div class="info-item"><span>학년/학기</span><strong>{{ program.year }} / {{ program.semester }}</strong></div>
+          <div class="info-item"><span>학생명</span><strong>{{ student_name }}</strong></div>
+          <div class="info-item"><span>학번</span><strong>{{ student_number }}</strong></div>
+          <div class="info-item"><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
+          <div class="info-item"><span>희망전공</span><strong data-review-major>{{ form_data.desired_major or '-' }}</strong></div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" data-modal-close>다시쓰기</button>
+          <button type="button" class="primary-button student" data-student-review-confirm>확인</button>
+        </div>
+      </div>
+    </dialog>
+  </form>
 {% endblock %}

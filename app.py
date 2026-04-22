@@ -1473,6 +1473,7 @@ def render_template(request: Request, template_name: str, **context: Any) -> Res
         "submission_status_labels": SUBMISSION_STATUS_LABELS,
         "status_label": status_label,
         "format_datetime": format_datetime,
+        "shell": build_shell_context(request, template_name),
     }
     html = template.render(**base_context, **context)
     return html_response(html)
@@ -1502,6 +1503,160 @@ def get_current_teacher(request: Request) -> sqlite3.Row | None:
         "SELECT * FROM teachers WHERE id = ?",
         (request.session["teacher_id"],),
     ).fetchone()
+
+
+def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
+    template_meta = {
+        "landing.html": {
+            "authenticated": False,
+            "page_title": "AFE 캠프 산출물 관리 시스템",
+            "page_description": "학생, 강사, 관리자가 같은 포털에서 역할을 선택해 로그인합니다.",
+            "active_key": "login",
+        },
+        "admin_login.html": {
+            "authenticated": False,
+            "page_title": "관리자 로그인",
+            "page_description": "관리자 계정으로 운영 대시보드에 접속합니다.",
+            "active_key": "login",
+        },
+        "admin_dashboard.html": {
+            "authenticated": True,
+            "page_title": "관리자 운영 대시보드",
+            "page_description": "캠프, 강사, 결과물, 프로그램 유형을 한 화면에서 운영합니다.",
+            "active_key": "admin-dashboard",
+        },
+        "admin_program_detail.html": {
+            "authenticated": True,
+            "page_title": "캠프 상세 / 결과물 관리",
+            "page_description": "학생 제출, 강사 평가, 관리자 최종 평가를 검토합니다.",
+            "active_key": "camp-list",
+        },
+        "teacher_dashboard.html": {
+            "authenticated": True,
+            "page_title": "강사 메인 / 프로그램 리스트",
+            "page_description": "배정된 캠프와 진행 현황을 확인합니다.",
+            "active_key": "teacher-dashboard",
+        },
+        "teacher_program_detail.html": {
+            "authenticated": True,
+            "page_title": "강사 프로그램 검토",
+            "page_description": "학생 제출 내용을 검토하고 평가를 작성합니다.",
+            "active_key": "teacher-programs",
+        },
+        "student_start.html": {
+            "authenticated": True,
+            "page_title": "참여 프로그램 / 학생 정보 입력",
+            "page_description": "프로그램 정보를 확인하고 학생 정보를 먼저 입력합니다.",
+            "active_key": "student-info",
+        },
+        "student_form.html": {
+            "authenticated": True,
+            "page_title": "자기평가 질문지 / 탐구내용 작성",
+            "page_description": "키워드와 탐구 내용을 정리하고 임시저장 또는 제출합니다.",
+            "active_key": "student-questionnaire",
+        },
+        "student_submitted.html": {
+            "authenticated": True,
+            "page_title": "제출 완료",
+            "page_description": "학생 제출이 완료되었으며 강사 검토 단계로 전달됩니다.",
+            "active_key": "student-submit",
+        },
+    }.get(
+        template_name,
+        {
+            "authenticated": bool(request.session),
+            "page_title": "AFE 캠프",
+            "page_description": "",
+            "active_key": "",
+        },
+    )
+
+    role = request.session["role"] if request.session else ""
+    role_label = {"admin": "관리자", "teacher": "강사", "student": "학생"}.get(role, "게스트")
+    user_name = ""
+    user_detail = ""
+    if role == "admin":
+        admin = get_current_admin(request)
+        if admin:
+            user_name = admin["display_name"]
+            user_detail = admin["username"]
+    elif role == "teacher":
+        teacher = get_current_teacher(request)
+        if teacher:
+            user_name = teacher["name"]
+            user_detail = teacher["username"]
+    elif role == "student":
+        student_name = get_student_name_from_session(request)
+        student_number = get_student_number_from_session(request)
+        user_name = student_name or "학생 사용자"
+        user_detail = student_number
+
+    nav_groups: list[dict[str, Any]] = []
+    if role == "admin":
+        nav_groups = [
+            {
+                "label": "운영",
+                "items": [
+                    {"key": "admin-dashboard", "label": "대시보드", "href": "/admin"},
+                    {"key": "camp-create", "label": "캠프 개설", "href": "/admin#camp-create"},
+                    {"key": "camp-list", "label": "캠프 리스트", "href": "/admin#camp-list"},
+                    {"key": "result-manage", "label": "결과물 관리", "href": "/admin#result-manage"},
+                ],
+            },
+            {
+                "label": "강사",
+                "items": [
+                    {"key": "teacher-create", "label": "강사 등록", "href": "/admin#teacher-create"},
+                    {"key": "teacher-list", "label": "강사 리스트", "href": "/admin#teacher-list"},
+                    {"key": "teacher-irregular", "label": "비정형현황", "href": "/admin#teacher-irregular"},
+                ],
+            },
+            {
+                "label": "설정",
+                "items": [
+                    {"key": "template-manage", "label": "프로그램 유형 관리", "href": "/admin#template-manage"},
+                    {"key": "risk-entry", "label": "위험입력", "href": "/admin#risk-entry"},
+                    {"key": "risk-report", "label": "위험산책 보고", "href": "/admin#risk-report"},
+                ],
+            },
+        ]
+    elif role == "teacher":
+        nav_groups = [
+            {
+                "label": "강사",
+                "items": [
+                    {"key": "teacher-dashboard", "label": "프로그램 리스트", "href": "/teacher"},
+                    {"key": "teacher-programs", "label": "학생 면담지 검토", "href": "/teacher"},
+                ],
+            }
+        ]
+    elif role == "student":
+        nav_groups = [
+            {
+                "label": "학생",
+                "items": [
+                    {"key": "student-info", "label": "프로그램 / 학생 정보", "href": "/student/start"},
+                    {"key": "student-questionnaire", "label": "자기평가 질문지", "href": "/student"},
+                    {"key": "student-submit", "label": "제출 확인", "href": "/student"},
+                ],
+            }
+        ]
+
+    active_key = template_meta["active_key"]
+    for group in nav_groups:
+        for item in group["items"]:
+            item["is_active"] = item["key"] == active_key
+
+    return {
+        "authenticated": template_meta["authenticated"],
+        "page_title": template_meta["page_title"],
+        "page_description": template_meta["page_description"],
+        "role": role,
+        "role_label": role_label,
+        "user_name": user_name,
+        "user_detail": user_detail,
+        "nav_groups": nav_groups,
+    }
 
 
 def get_program_teacher_mapping(
@@ -2473,6 +2628,15 @@ def admin_dashboard(request: Request) -> Response:
         """
     ).fetchall()
     templates = [get_template_card(row) for row in template_rows]
+    blank_filters = {
+        "year": "",
+        "semester": "",
+        "school_name": "",
+        "teacher_id": "",
+        "status": "",
+        "keyword": "",
+    }
+    camp_programs = query_programs(request.db, blank_filters)
     filters = admin_filters_from_request(request)
     programs = query_programs(request.db, filters)
     metrics = dashboard_metrics(request.db)
@@ -2485,6 +2649,7 @@ def admin_dashboard(request: Request) -> Response:
         program_options=program_options,
         teacher_assignments=teacher_assignments,
         templates=templates,
+        camp_programs=camp_programs,
         programs=programs,
         filters=filters,
         metrics=metrics,

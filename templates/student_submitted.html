@@ -3,29 +3,28 @@
 {% block title %}제출 완료 | AFE{% endblock %}
 
 {% block content %}
-  <section class="auth-shell">
-    <article class="panel-card submit-complete-card">
-      <div class="panel-heading">
-        <p class="eyebrow">SUBMISSION COMPLETE</p>
-        <h1>학생 제출이 완료되었습니다</h1>
-        <p>작성한 내용은 강사 검토 화면으로 전달되며, 이후 관리자 결과물 관리에도 반영됩니다.</p>
+  <section class="page-section">
+    <div class="card completion-card">
+      <div class="card-header">
+        <div>
+          <p class="section-kicker">SUBMITTED</p>
+          <h2>학생 제출이 완료되었습니다</h2>
+          <p class="card-description">작성한 질문지는 강사 검토 단계로 전달되었습니다.</p>
+        </div>
       </div>
 
-      <div class="meta-grid compact-top">
-        <div><span>프로그램명</span><strong>{{ program.title }}</strong></div>
-        <div><span>학교</span><strong>{{ program.school_name }}</strong></div>
-        <div><span>교급</span><strong>{{ program.school_level }}</strong></div>
-        <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
-        <div><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
-        {% if submission %}
-          <div><span>제출자</span><strong>{{ submission.student_name }} / {{ submission.student_number }}</strong></div>
-        {% endif %}
+      <div class="info-grid">
+        <div class="info-item"><span>프로그램명</span><strong>{{ program.title }}</strong></div>
+        <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
+        <div class="info-item"><span>학생명</span><strong>{{ submission.student_name }}</strong></div>
+        <div class="info-item"><span>학번</span><strong>{{ submission.student_number }}</strong></div>
+        <div class="info-item"><span>희망전공</span><strong>{{ submission.desired_major }}</strong></div>
+        <div class="info-item"><span>제출 시각</span><strong>{{ format_datetime(submission.student_submitted_at) }}</strong></div>
       </div>
 
-      <div class="submit-complete-actions compact-top">
-        <a href="/student" class="secondary-button">작성 내용 다시 확인</a>
-        <a href="/" class="primary-button student">메인 포털로 이동</a>
+      <div class="page-actions">
+        <a href="/" class="secondary-button">처음으로</a>
       </div>
-    </article>
+    </div>
   </section>
 {% endblock %}

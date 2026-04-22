@@ -1,86 +1,94 @@
 {% extends "base.html" %}
 
-{% block title %}{{ program.title }} | 관리자 상세{% endblock %}
+{% block title %}캠프 상세 / 결과물 관리 | AFE{% endblock %}
+
+{% block workspace_actions %}
+  <div class="badge-row">
+    <a href="/admin/programs/{{ program.id }}/download.xlsx" class="secondary-button compact-button">Excel 다운로드</a>
+    <a href="/admin" class="secondary-button compact-button">목록으로</a>
+  </div>
+{% endblock %}
 
 {% block content %}
-  <section class="page-header">
-    <div>
-      <p class="eyebrow">PROGRAM DETAIL</p>
-      <h1>{{ program.title }}</h1>
-      <p>{{ program.school_name }} · {{ program.school_level }} · {{ program.year }} {{ program.semester }}</p>
-    </div>
-    <div class="header-actions">
-      <a href="/admin/programs/{{ program.id }}/download.xlsx" class="secondary-button">이 프로그램 Excel 다운로드</a>
-      <a href="/admin" class="ghost-link">목록으로 돌아가기</a>
-    </div>
-  </section>
-
-  <section class="grid-two">
-    <article class="surface-card">
-      <h2>프로그램 정보</h2>
-      <div class="meta-grid">
-        <div><span>학생용 코드</span><strong>{{ program.program_code }}</strong></div>
-        <div><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
-        <div><span>강사 코드명</span><strong>{{ program.teacher_access_code }}</strong></div>
-        <div><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
-        <div><span>상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
-        <div><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
-      </div>
-      {% if program.assigned_teachers %}
-        <div class="detail-block compact-top">
-          <span>배정 강사 목록</span>
-          <div class="teacher-assignment-stack compact-top">
-            {% for teacher in program.assigned_teachers %}
-              <div class="teacher-assignment-item">
-                <strong>{{ teacher.name }}</strong>
-                <span>{{ teacher.username }}</span>
-                <code>{{ teacher.access_code }}</code>
-              </div>
-            {% endfor %}
+  <section class="page-grid two-column">
+    <div class="stack-layout">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="section-kicker">PROGRAM DETAIL</p>
+            <h2>{{ program.title }}</h2>
+            <p class="card-description">{{ program.school_name }} / {{ program.school_level }} / {{ program.year }} {{ program.semester }}</p>
           </div>
         </div>
-      {% endif %}
 
-      <form action="/admin/programs/{{ program.id }}/status" method="post" class="stack-form compact-top">
-        <label>
-          <span>프로그램 상태 변경</span>
-          <select name="status">
-            {% for key, value in program_status_labels.items() %}
-              <option value="{{ key }}" {% if program.status == key %}selected{% endif %}>{{ value }}</option>
-            {% endfor %}
-          </select>
-        </label>
-        <button type="submit" class="primary-button admin">상태 저장</button>
-      </form>
-    </article>
+        <div class="info-grid">
+          <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
+          <div class="info-item"><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
+          <div class="info-item"><span>담당 강사</span><strong>{{ program.teacher_name }}</strong></div>
+          <div class="info-item"><span>강사 코드명</span><strong>{{ program.teacher_access_code }}</strong></div>
+          <div class="info-item"><span>상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
+          <div class="info-item"><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
+        </div>
 
-    <article class="surface-card">
-      <h2>질문 템플릿 스냅샷</h2>
-      <ol class="question-list">
-        {% for question in questions %}
-          <li>{{ question }}</li>
-        {% endfor %}
-      </ol>
-    </article>
-  </section>
+        {% if program.assigned_teachers %}
+          <section class="subsection-card compact-top">
+            <div class="section-head">
+              <h3>배정 강사 목록</h3>
+              <p>캠프와 연결된 강사 정보를 한눈에 확인합니다.</p>
+            </div>
+            <div class="chip-grid">
+              {% for teacher in program.assigned_teachers %}
+                <div class="chip-card">
+                  <strong>{{ teacher.name }}</strong>
+                  <span>{{ teacher.username }}</span>
+                  <code>{{ teacher.access_code }}</code>
+                </div>
+              {% endfor %}
+            </div>
+          </section>
+        {% endif %}
 
-  <section class="surface-card">
-    <div class="section-title">
-      <h2>학생 제출 목록</h2>
-      <p>강사 평가를 확인하고, 필요한 경우 관리자 최종 평가를 수정할 수 있습니다.</p>
+        <form action="/admin/programs/{{ program.id }}/status" method="post" class="stack-form compact-top">
+          <label class="form-field">
+            <span>프로그램 상태 변경</span>
+            <select name="status">
+              {% for key, value in program_status_labels.items() %}
+                <option value="{{ key }}" {% if program.status == key %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="page-actions align-right">
+            <button type="submit" class="primary-button admin">상태 저장</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="section-kicker">QUESTION TEMPLATE</p>
+            <h2>질문지 구성</h2>
+          </div>
+        </div>
+        <div class="outline-stack">
+          {% for question in questions %}
+            <div class="outline-row">
+              <strong>{{ loop.index }}</strong>
+              <p>{{ question }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </section>
     </div>
 
-    <div class="submission-stack">
+    <div class="stack-layout">
       {% for submission in submissions %}
-        <article class="submission-card">
-          <div class="submission-header">
+        <article class="card submission-card">
+          <div class="card-header">
             <div>
-              <h3>{{ submission.student_name }} ({{ submission.student_number }})</h3>
-              <p>희망전공: {{ submission.desired_major }} · 상태: {{ status_label(submission.status, "submission") }}</p>
-            </div>
-            <div class="timestamps">
-              <span>학생 제출: {{ format_datetime(submission.student_submitted_at) }}</span>
-              <span>강사 수정: {{ format_datetime(submission.teacher_updated_at) }}</span>
+              <p class="section-kicker">RESULT REVIEW</p>
+              <h2>{{ submission.student_name }} ({{ submission.student_number }})</h2>
+              <p class="card-description">희망전공: {{ submission.desired_major }} · 상태: {{ status_label(submission.status, "submission") }}</p>
             </div>
           </div>
 
@@ -93,29 +101,41 @@
             {% endfor %}
           </div>
 
-          <div class="grid-two compact-top">
-            <div class="surface-subcard">
-              <h4>강사 요약/평가</h4>
-              <p><strong>요약</strong></p>
-              <p>{{ submission.teacher_summary or "아직 강사 요약이 없습니다." }}</p>
-              <p><strong>평가 내용</strong></p>
-              <p>{{ submission.teacher_evaluation or "아직 강사 평가가 없습니다." }}</p>
-            </div>
+          <div class="page-grid two-column compact-top">
+            <section class="subsection-card">
+              <div class="section-head">
+                <h3>강사 평가</h3>
+                <p>강사가 검토한 요약과 평가 내용을 확인합니다.</p>
+              </div>
+              <div class="detail-block">
+                <span>요약</span>
+                <p>{{ submission.teacher_summary or "아직 강사 요약이 없습니다." }}</p>
+              </div>
+              <div class="detail-block compact-top">
+                <span>평가 내용</span>
+                <p>{{ submission.teacher_evaluation or "아직 강사 평가가 없습니다." }}</p>
+              </div>
+            </section>
 
-            <form action="/admin/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form surface-subcard">
-              <h4>관리자 최종 평가</h4>
-              <label>
+            <form action="/admin/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form subsection-card">
+              <div class="section-head">
+                <h3>관리자 최종 평가</h3>
+                <p>최종 다운로드에 반영될 문장을 정리합니다.</p>
+              </div>
+              <label class="form-field">
                 <span>최종 평가 내용</span>
-                <textarea name="admin_feedback" rows="7" placeholder="관리자 차원의 최종 정리 내용을 입력하세요.">{{ submission.admin_feedback or submission.teacher_evaluation }}</textarea>
+                <textarea name="admin_feedback" rows="8" placeholder="관리자 기준 최종 평가를 입력해 주세요.">{{ submission.admin_feedback or submission.teacher_evaluation }}</textarea>
               </label>
-              <button type="submit" class="primary-button admin">관리자 평가 저장</button>
+              <div class="page-actions align-right">
+                <button type="submit" class="primary-button admin">관리자 평가 저장</button>
+              </div>
             </form>
           </div>
         </article>
       {% else %}
-        <div class="empty-state">
+        <div class="card empty-state">
           <h3>아직 학생 제출이 없습니다.</h3>
-          <p>학생이 프로그램 코드로 접속해 질문지를 제출하면 이곳에 표시됩니다.</p>
+          <p>학생이 프로그램 코드로 질문지를 제출하면 이 화면에서 강사 평가와 함께 검토할 수 있습니다.</p>
         </div>
       {% endfor %}
     </div>
