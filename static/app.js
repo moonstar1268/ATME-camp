@@ -44,7 +44,7 @@ function initTabs() {
 }
 
 function initProgramCodeInputs() {
-  document.querySelectorAll("input[name='program_code']").forEach((input) => {
+  document.querySelectorAll("input[name='program_code'], input[name='access_code']").forEach((input) => {
     input.addEventListener("input", (event) => {
       event.currentTarget.value = event.currentTarget.value
         .replace(/[^a-zA-Z0-9]/g, "")

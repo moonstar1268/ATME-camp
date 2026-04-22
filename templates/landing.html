@@ -4,89 +4,82 @@
 {% block body_class %}landing-page{% endblock %}
 
 {% block content %}
-  <section class="login-shell">
-    <article class="login-side">
-      <p class="section-kicker">AFE CAMP PLATFORM</p>
+  <section class="login-wireframe-shell">
+    <div class="login-wireframe-header">
+      <p class="section-kicker">AFE CAMP</p>
       <h1>AFE 캠프 산출물 관리 시스템</h1>
-      <p class="login-lead">
-        학생, 강사, 관리자가 하나의 포털에서 역할을 선택해 접속하고 같은 데이터 흐름 안에서
-        산출물 작성, 검토, 취합을 진행하는 운영 시스템입니다.
-      </p>
+    </div>
 
-      <div class="login-feature-list">
-        <div class="login-feature-item">
-          <strong>학생</strong>
-          <p>프로그램 코드로 접속해 학생 정보 입력, 자기평가 질문지 작성, 임시저장과 제출을 진행합니다.</p>
-        </div>
-        <div class="login-feature-item">
-          <strong>강사</strong>
-          <p>배정된 프로그램과 학생 제출 현황을 확인하고 평가 내용을 검토·작성합니다.</p>
-        </div>
-        <div class="login-feature-item">
-          <strong>관리자</strong>
-          <p>캠프 개설, 강사 등록, 결과물 관리, 프로그램 유형 운영을 하나의 대시보드에서 처리합니다.</p>
-        </div>
-      </div>
-    </article>
+    {% if error %}
+      <div class="flash flash-error">{{ error }}</div>
+    {% endif %}
 
-    <article class="login-card">
-      <div class="card-header">
-        <div>
-          <p class="section-kicker">LOGIN</p>
-          <h2>역할을 선택하고 로그인하세요</h2>
-        </div>
+    <div class="tabs login-wireframe-tabs" data-tabs>
+      <div class="role-switch login-wireframe-tablist" role="tablist" aria-label="로그인 역할 선택">
+        <button class="tab-button {% if active_role == 'student' %}is-active{% endif %}" type="button" data-tab-target="student">학생</button>
+        <button class="tab-button {% if active_role == 'teacher' %}is-active{% endif %}" type="button" data-tab-target="teacher">강사</button>
+        <button class="tab-button {% if active_role == 'admin' %}is-active{% endif %}" type="button" data-tab-target="admin">관리자</button>
       </div>
 
-      {% if error %}
-        <div class="flash flash-error">{{ error }}</div>
-      {% endif %}
-
-      <div class="tabs" data-tabs>
-        <div class="role-switch" role="tablist" aria-label="로그인 역할 선택">
-          <button class="tab-button {% if active_role == 'student' %}is-active{% endif %}" type="button" data-tab-target="student">학생</button>
-          <button class="tab-button {% if active_role == 'teacher' %}is-active{% endif %}" type="button" data-tab-target="teacher">강사</button>
-          <button class="tab-button {% if active_role == 'admin' %}is-active{% endif %}" type="button" data-tab-target="admin">관리자</button>
-        </div>
-
-        <div class="tab-panel {% if active_role == 'student' %}is-active{% endif %}" data-tab-panel="student">
-          <form action="/login/student" method="post" class="stack-form">
-            <label class="form-field">
-              <span>프로그램 코드</span>
-              <input type="text" name="program_code" placeholder="예: AFE26X9Q1K" maxlength="12" autocomplete="off" required />
+      <div class="tab-panel login-wireframe-panel {% if active_role == 'student' %}is-active{% endif %}" data-tab-panel="student">
+        <form action="/login/student" method="post" class="login-wireframe-form">
+          <div class="login-wireframe-body">
+            <label class="login-wireframe-row login-wireframe-row-single">
+              <span>코드 명</span>
+              <input
+                type="text"
+                name="program_code"
+                placeholder="코드를 입력하세요 (ex. AFE26X9Q1K)"
+                maxlength="12"
+                autocomplete="off"
+                required
+              />
             </label>
-            <p class="form-hint">강사 또는 운영진에게 전달받은 코드로 학생 질문지 단계로 이동합니다.</p>
-            <button type="submit" class="primary-button student">학생 로그인</button>
-          </form>
-        </div>
+          </div>
+          <div class="login-wireframe-actions">
+            <button type="submit" class="login-wireframe-submit">이동</button>
+          </div>
+        </form>
+      </div>
 
-        <div class="tab-panel {% if active_role == 'teacher' %}is-active{% endif %}" data-tab-panel="teacher">
-          <form action="/login/teacher" method="post" class="stack-form">
-            <label class="form-field">
+      <div class="tab-panel login-wireframe-panel {% if active_role == 'teacher' %}is-active{% endif %}" data-tab-panel="teacher">
+        <form action="/login/teacher" method="post" class="login-wireframe-form">
+          <div class="login-wireframe-body">
+            <label class="login-wireframe-row login-wireframe-row-single">
+              <span>코드 명</span>
+              <input
+                type="text"
+                name="access_code"
+                placeholder="코드를 입력하세요 (ex. WVXXKX7K)"
+                maxlength="12"
+                autocomplete="off"
+                required
+              />
+            </label>
+          </div>
+          <div class="login-wireframe-actions">
+            <button type="submit" class="login-wireframe-submit">이동</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="tab-panel login-wireframe-panel {% if active_role == 'admin' %}is-active{% endif %}" data-tab-panel="admin">
+        <form action="/login/admin" method="post" class="login-wireframe-form">
+          <div class="login-wireframe-body">
+            <label class="login-wireframe-row">
               <span>ID</span>
-              <input type="text" name="username" placeholder="강사 아이디" autocomplete="username" required />
+              <input type="text" name="username" placeholder="ID를 입력하세요." autocomplete="username" required />
             </label>
-            <label class="form-field">
+            <label class="login-wireframe-row">
               <span>PW</span>
-              <input type="password" name="password" placeholder="비밀번호" autocomplete="current-password" required />
+              <input type="password" name="password" placeholder="PW를 입력하세요." autocomplete="current-password" required />
             </label>
-            <button type="submit" class="primary-button teacher">강사 로그인</button>
-          </form>
-        </div>
-
-        <div class="tab-panel {% if active_role == 'admin' %}is-active{% endif %}" data-tab-panel="admin">
-          <form action="/login/admin" method="post" class="stack-form">
-            <label class="form-field">
-              <span>ID</span>
-              <input type="text" name="username" placeholder="관리자 아이디" autocomplete="username" required />
-            </label>
-            <label class="form-field">
-              <span>PW</span>
-              <input type="password" name="password" placeholder="비밀번호" autocomplete="current-password" required />
-            </label>
-            <button type="submit" class="primary-button admin">관리자 로그인</button>
-          </form>
-        </div>
+          </div>
+          <div class="login-wireframe-actions">
+            <button type="submit" class="login-wireframe-submit">이동</button>
+          </div>
+        </form>
       </div>
-    </article>
+    </div>
   </section>
 {% endblock %}

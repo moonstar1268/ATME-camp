@@ -727,6 +727,137 @@ button:disabled {
   align-items: stretch;
 }
 
+.login-wireframe-shell {
+  width: min(1180px, calc(100vw - 48px));
+  margin: 24px auto 0;
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+
+.login-wireframe-header {
+  text-align: center;
+  display: grid;
+  gap: 10px;
+}
+
+.login-wireframe-header h1 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 2.6rem);
+  line-height: 1.12;
+}
+
+.login-wireframe-tabs {
+  width: min(1080px, 100%);
+  gap: 0;
+}
+
+.login-wireframe-tablist {
+  width: min(900px, calc(100% - 160px));
+  margin: 0 auto -1px;
+  padding: 14px 18px;
+  border: 3px solid #163042;
+  border-bottom: none;
+  border-radius: 24px 24px 0 0;
+  background: #ffffff;
+}
+
+.login-wireframe-tablist .tab-button {
+  min-height: 58px;
+  border: 3px solid #163042;
+  border-radius: 0;
+  background: #ffffff;
+  color: #102135;
+  font-size: 1.1rem;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.login-wireframe-tablist .tab-button.is-active {
+  background: #f4f8fb;
+}
+
+.login-wireframe-panel {
+  padding: 0;
+  border: 3px solid #163042;
+  border-radius: 0;
+  background: #ffffff;
+  min-height: 520px;
+}
+
+.login-wireframe-form {
+  min-height: 520px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}
+
+.login-wireframe-body {
+  display: grid;
+  gap: 34px;
+  align-content: center;
+  width: min(900px, calc(100% - 120px));
+  margin: 0 auto;
+  padding: 56px 0;
+}
+
+.login-wireframe-row {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 22px;
+}
+
+.login-wireframe-row-single {
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.login-wireframe-row span {
+  font-size: 2rem;
+  font-weight: 500;
+  color: #102135;
+}
+
+.login-wireframe-row input {
+  min-height: 78px;
+  border: 3px solid #163042;
+  border-radius: 0;
+  padding: 0 28px;
+  font-size: 1.2rem;
+  text-align: center;
+  box-shadow: none;
+}
+
+.login-wireframe-row input::placeholder {
+  color: #4f6577;
+}
+
+.login-wireframe-row input:focus {
+  border-color: #163042;
+  box-shadow: 0 0 0 5px rgba(22, 48, 66, 0.08);
+}
+
+.login-wireframe-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 18px 18px;
+}
+
+.login-wireframe-submit {
+  min-width: 176px;
+  min-height: 112px;
+  border: 3px solid #163042;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #102135;
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+.login-wireframe-submit:hover {
+  background: #f4f8fb;
+}
+
 .login-side,
 .login-card {
   border: 1px solid var(--border);
@@ -1256,6 +1387,57 @@ button:disabled {
   .card,
   .completion-card {
     padding: 22px;
+  }
+
+  .login-wireframe-shell {
+    width: calc(100vw - 24px);
+  }
+
+  .login-wireframe-tablist {
+    width: 100%;
+    padding: 10px;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .login-wireframe-tablist .tab-button {
+    min-height: 48px;
+    font-size: 1rem;
+  }
+
+  .login-wireframe-panel,
+  .login-wireframe-form {
+    min-height: auto;
+  }
+
+  .login-wireframe-body {
+    width: calc(100% - 40px);
+    padding: 34px 0 26px;
+  }
+
+  .login-wireframe-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .login-wireframe-row span {
+    font-size: 1.25rem;
+  }
+
+  .login-wireframe-row input {
+    min-height: 60px;
+    font-size: 1rem;
+    text-align: left;
+  }
+
+  .login-wireframe-actions {
+    justify-content: center;
+    padding: 0 0 20px;
+  }
+
+  .login-wireframe-submit {
+    min-width: 140px;
+    min-height: 72px;
+    font-size: 1.4rem;
   }
 
   .workspace-topbar {

@@ -2559,14 +2559,27 @@ def login_admin(request: Request) -> Response:
 
 @route("POST", r"/login/teacher")
 def login_teacher(request: Request) -> Response:
-    username = request.form.get("username", "").strip().lower()
-    password = request.form.get("password", "").strip()
-    teacher = request.db.execute(
-        "SELECT * FROM teachers WHERE username = ?",
-        (username,),
-    ).fetchone()
-    if not teacher or not verify_password(password, teacher["password_hash"]):
-        return redirect_response("/?role=teacher&error=강사%20아이디%20또는%20비밀번호를%20확인해%20주세요.")
+    access_code = re.sub(r"[^A-Za-z0-9]", "", request.form.get("access_code", "").strip()).upper()[:12]
+    teacher = None
+
+    if access_code:
+        teacher = request.db.execute(
+            "SELECT * FROM teachers WHERE access_code = ?",
+            (access_code,),
+        ).fetchone()
+    else:
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "").strip()
+        if username and password:
+            candidate = request.db.execute(
+                "SELECT * FROM teachers WHERE username = ?",
+                (username,),
+            ).fetchone()
+            if candidate and verify_password(password, candidate["password_hash"]):
+                teacher = candidate
+
+    if not teacher:
+        return redirect_response("/?role=teacher&error=유효한%20강사%20코드를%20입력해%20주세요.")
 
     if request.session:
         destroy_session(request.db, request.session["id"])
