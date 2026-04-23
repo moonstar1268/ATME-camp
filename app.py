@@ -2556,7 +2556,7 @@ def login_admin(request: Request) -> Response:
         (username,),
     ).fetchone()
     if not admin or not verify_password(password, admin["password_hash"]):
-        return redirect_response("/admin/login?error=관리자%20ID%20또는%20비밀번호가%20올바르지%20않습니다.")
+        return login_error_redirect("admin")
 
     if request.session:
         destroy_session(request.db, request.session["id"])
@@ -2567,27 +2567,20 @@ def login_admin(request: Request) -> Response:
 
 @route("POST", r"/login/teacher")
 def login_teacher(request: Request) -> Response:
-    access_code = re.sub(r"[^A-Za-z0-9]", "", request.form.get("access_code", "").strip()).upper()[:12]
+    username = request.form.get("username", "").strip().lower()
+    password = request.form.get("password", "").strip()
     teacher = None
 
-    if access_code:
-        teacher = request.db.execute(
-            "SELECT * FROM teachers WHERE access_code = ?",
-            (access_code,),
+    if username and password:
+        candidate = request.db.execute(
+            "SELECT * FROM teachers WHERE username = ?",
+            (username,),
         ).fetchone()
-    else:
-        username = request.form.get("username", "").strip().lower()
-        password = request.form.get("password", "").strip()
-        if username and password:
-            candidate = request.db.execute(
-                "SELECT * FROM teachers WHERE username = ?",
-                (username,),
-            ).fetchone()
-            if candidate and verify_password(password, candidate["password_hash"]):
-                teacher = candidate
+        if candidate and verify_password(password, candidate["password_hash"]):
+            teacher = candidate
 
     if not teacher:
-        return redirect_response("/?role=teacher&error=유효한%20강사%20코드를%20입력해%20주세요.")
+        return login_error_redirect("teacher")
 
     if request.session:
         destroy_session(request.db, request.session["id"])

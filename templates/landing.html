@@ -9,7 +9,7 @@
       <p class="section-kicker">AFE CAMP PLATFORM</p>
       <h1>AFE 캠프 산출물 관리 시스템</h1>
       <p class="login-stage-lead">
-        역할을 선택한 뒤 학생과 강사는 코드로, 관리자는 계정 정보로 로그인할 수 있습니다.
+        학생은 프로그램 코드로, 강사와 관리자는 계정 정보로 로그인하여 각 역할에 맞는 화면으로 이동할 수 있습니다.
       </p>
     </div>
 
@@ -28,7 +28,7 @@
         <form action="/login/student" method="post" class="login-stage-form">
           <div class="login-stage-body">
             <label class="login-stage-field login-stage-field-single">
-              <span>코드 명</span>
+              <span>코드명</span>
               <input
                 type="text"
                 name="program_code"
@@ -50,18 +50,15 @@
       <div class="tab-panel {% if active_role == 'teacher' %}is-active{% endif %}" data-tab-panel="teacher">
         <form action="/login/teacher" method="post" class="login-stage-form">
           <div class="login-stage-body">
-            <label class="login-stage-field login-stage-field-single">
-              <span>코드 명</span>
-              <input
-                type="text"
-                name="access_code"
-                placeholder="코드를 입력하세요. (ex. WVXXKX7K)"
-                maxlength="12"
-                autocomplete="off"
-                required
-              />
+            <label class="login-stage-field">
+              <span>ID</span>
+              <input type="text" name="username" placeholder="ID를 입력하세요." autocomplete="username" required />
             </label>
-            <p class="login-stage-helper">강사는 발급받은 강사 코드로 배정된 프로그램 목록 화면에 진입합니다.</p>
+
+            <label class="login-stage-field">
+              <span>PW</span>
+              <input type="password" name="password" placeholder="PW를 입력하세요." autocomplete="current-password" required />
+            </label>
           </div>
 
           <div class="login-stage-actions">
