@@ -4,27 +4,47 @@
 
 {% block content %}
   <section class="page-section">
-    <div class="card completion-card">
-      <div class="card-header">
-        <div>
-          <p class="section-kicker">SUBMITTED</p>
-          <h2>학생 제출이 완료되었습니다</h2>
-          <p class="card-description">작성한 질문지는 강사 검토 단계로 전달되었습니다.</p>
+    <div class="card completion-card student-completion-card">
+      <section class="student-stage-frame student-completion-frame">
+        <div class="student-stage-frame-badge student-stage-frame-badge-centered">제출 완료</div>
+
+        <div class="student-stage-display-grid">
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">프로그램명</span>
+            <strong>{{ program.title }}</strong>
+          </article>
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">프로그램 코드</span>
+            <strong>{{ program.program_code }}</strong>
+          </article>
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">학교명</span>
+            <strong>{{ program.school_name }}</strong>
+          </article>
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">학년도 / 학기</span>
+            <strong>{{ program.year }} / {{ program.semester }}</strong>
+          </article>
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">학생명</span>
+            <strong>{{ submission.student_name }}</strong>
+          </article>
+          <article class="student-stage-display-card">
+            <span class="student-stage-display-label">학번</span>
+            <strong>{{ submission.student_number }}</strong>
+          </article>
+          <article class="student-stage-display-card student-stage-display-card-wide">
+            <span class="student-stage-display-label">담당 강사</span>
+            <strong class="prewrap-text">{{ program.teacher_name }}</strong>
+          </article>
         </div>
-      </div>
 
-      <div class="info-grid">
-        <div class="info-item"><span>프로그램명</span><strong>{{ program.title }}</strong></div>
-        <div class="info-item"><span>프로그램 코드</span><strong>{{ program.program_code }}</strong></div>
-        <div class="info-item"><span>학생명</span><strong>{{ submission.student_name }}</strong></div>
-        <div class="info-item"><span>학번</span><strong>{{ submission.student_number }}</strong></div>
-        <div class="info-item"><span>희망전공</span><strong>{{ submission.desired_major }}</strong></div>
-        <div class="info-item"><span>제출 시각</span><strong>{{ format_datetime(submission.student_submitted_at) }}</strong></div>
-      </div>
-
-      <div class="page-actions">
-        <a href="/" class="secondary-button">처음으로</a>
-      </div>
+        <div class="page-actions student-submit-actions student-completion-actions">
+          <button type="button" class="secondary-button" onclick="window.history.back()">다시 확인</button>
+          <a href="/" class="primary-button student">확인</a>
+        </div>
+        <p class="student-submit-note">* 확인을 누르면 메인 페이지로 돌아갑니다.</p>
+      </section>
     </div>
   </section>
 {% endblock %}

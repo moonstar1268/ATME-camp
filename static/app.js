@@ -397,17 +397,21 @@ function initKeywordEditors() {
       }
 
       keywords.forEach((keyword, index) => {
-        const chip = document.createElement("span");
-        chip.className = "keyword-chip";
-        chip.innerHTML = `
-          <span>${escapeHtml(keyword)}</span>
-          <button type="button" aria-label="키워드 삭제">×</button>
+        const row = document.createElement("div");
+        row.className = "keyword-list-row";
+        row.innerHTML = `
+          <span class="keyword-list-index">${index + 1}</span>
+          <div class="keyword-list-body">
+            <strong>${escapeHtml(keyword)}</strong>
+            <p>현재 정리된 핵심 키워드입니다.</p>
+          </div>
+          <button type="button" class="keyword-list-remove" aria-label="키워드 삭제">×</button>
         `;
-        chip.querySelector("button").addEventListener("click", () => {
+        row.querySelector("button").addEventListener("click", () => {
           keywords.splice(index, 1);
           render();
         });
-        list.appendChild(chip);
+        list.appendChild(row);
       });
 
       sync();
