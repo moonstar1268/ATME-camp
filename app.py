@@ -497,6 +497,57 @@ def parse_questions_from_text(raw_text: str) -> list[str]:
     return [line.strip() for line in raw_text.splitlines() if line.strip()]
 
 
+ADMIN_PANEL_META: dict[str, dict[str, str]] = {
+    "camp-create": {
+        "page_title": "캠프 개설",
+        "page_description": "교급, 학교, 학년·학기, 담당 강사와 프로그램 유형을 묶어 새 캠프를 개설합니다.",
+        "active_key": "camp-create",
+    },
+    "camp-list": {
+        "page_title": "캠프 리스트",
+        "page_description": "개설된 캠프 현황을 표로 확인하고 상세, 삭제, Excel 다운로드까지 이어서 관리합니다.",
+        "active_key": "camp-list",
+    },
+    "teacher-create": {
+        "page_title": "강사 등록",
+        "page_description": "강사 기본 정보와 계정, 코드명, 메모를 등록해 운영 준비를 마칩니다.",
+        "active_key": "teacher-create",
+    },
+    "teacher-list": {
+        "page_title": "강사 리스트",
+        "page_description": "등록된 강사를 확인하고 캠프 배정과 배정 취소를 한 곳에서 처리합니다.",
+        "active_key": "teacher-list",
+    },
+    "teacher-irregular": {
+        "page_title": "강사 배정현황",
+        "page_description": "강사별 프로그램 배정 상태와 학생 제출 현황을 운영용 표로 확인합니다.",
+        "active_key": "teacher-irregular",
+    },
+    "template-create": {
+        "page_title": "유형 입력",
+        "page_description": "새 프로그램 유형을 만들고 기본 질문과 평가 프롬프트를 저장합니다.",
+        "active_key": "template-create",
+    },
+    "template-manage": {
+        "page_title": "유형 관리",
+        "page_description": "저장된 유형을 수정하고 사용 현황을 확인하며 운영 중인 유형을 정리합니다.",
+        "active_key": "template-manage",
+    },
+}
+
+
+def current_admin_panel(request: Request) -> str:
+    panel = request.query.get("panel", "camp-create").strip()
+    if panel not in ADMIN_PANEL_META:
+        return "camp-create"
+    return panel
+
+
+def admin_panel_path(panel: str = "camp-create") -> str:
+    resolved_panel = panel if panel in ADMIN_PANEL_META else "camp-create"
+    return f"/admin?panel={resolved_panel}"
+
+
 @lru_cache(maxsize=256)
 def fetch_reference_api_payload(path: str) -> dict[str, Any]:
     url = f"{REFERENCE_API_BASE_URL}{path}"
@@ -1570,6 +1621,11 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
             "active_key": "",
         },
     )
+    if template_name == "admin_dashboard.html":
+        template_meta = {
+            **template_meta,
+            **ADMIN_PANEL_META[current_admin_panel(request)],
+        }
 
     role = request.session["role"] if request.session else ""
     role_label = {"admin": "관리자", "teacher": "강사", "student": "학생"}.get(role, "게스트")
@@ -1595,28 +1651,25 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
     if role == "admin":
         nav_groups = [
             {
-                "label": "운영",
+                "label": "캠프",
                 "items": [
-                    {"key": "admin-dashboard", "label": "대시보드", "href": "/admin"},
-                    {"key": "camp-create", "label": "캠프 개설", "href": "/admin#camp-create"},
-                    {"key": "camp-list", "label": "캠프 리스트", "href": "/admin#camp-list"},
-                    {"key": "result-manage", "label": "결과물 관리", "href": "/admin#result-manage"},
+                    {"key": "camp-create", "label": "개설", "href": admin_panel_path("camp-create")},
+                    {"key": "camp-list", "label": "리스트", "href": admin_panel_path("camp-list")},
                 ],
             },
             {
                 "label": "강사",
                 "items": [
-                    {"key": "teacher-create", "label": "강사 등록", "href": "/admin#teacher-create"},
-                    {"key": "teacher-list", "label": "강사 리스트", "href": "/admin#teacher-list"},
-                    {"key": "teacher-irregular", "label": "비정형현황", "href": "/admin#teacher-irregular"},
+                    {"key": "teacher-create", "label": "등록", "href": admin_panel_path("teacher-create")},
+                    {"key": "teacher-list", "label": "리스트", "href": admin_panel_path("teacher-list")},
+                    {"key": "teacher-irregular", "label": "배정현황", "href": admin_panel_path("teacher-irregular")},
                 ],
             },
             {
-                "label": "설정",
+                "label": "유형관리",
                 "items": [
-                    {"key": "template-manage", "label": "프로그램 유형 관리", "href": "/admin#template-manage"},
-                    {"key": "risk-entry", "label": "위험입력", "href": "/admin#risk-entry"},
-                    {"key": "risk-report", "label": "위험산책 보고", "href": "/admin#risk-report"},
+                    {"key": "template-create", "label": "유형입력", "href": admin_panel_path("template-create")},
+                    {"key": "template-manage", "label": "관리", "href": admin_panel_path("template-manage")},
                 ],
             },
         ]
@@ -2625,6 +2678,7 @@ def admin_dashboard(request: Request) -> Response:
     if auth:
         return auth
     admin = get_current_admin(request)
+    active_admin_panel = current_admin_panel(request)
     teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
     program_options = list_program_options(request.db)
     teacher_management_rows = build_teacher_management_rows(request.db, teachers, program_options)
@@ -2651,22 +2705,17 @@ def admin_dashboard(request: Request) -> Response:
         "keyword": "",
     }
     camp_programs = query_programs(request.db, blank_filters)
-    filters = admin_filters_from_request(request)
-    programs = query_programs(request.db, filters)
-    metrics = dashboard_metrics(request.db)
     return render_template(
         request,
         "admin_dashboard.html",
         admin=admin,
+        active_admin_panel=active_admin_panel,
         teachers=teachers,
         teacher_management_rows=teacher_management_rows,
         program_options=program_options,
         teacher_assignments=teacher_assignments,
         templates=templates,
         camp_programs=camp_programs,
-        programs=programs,
-        filters=filters,
-        metrics=metrics,
         school_levels=SCHOOL_LEVEL_OPTIONS,
         semesters=SEMESTER_OPTIONS,
         default_prompt_text=EVALUATION_EXAMPLE_PROMPT.strip(),
@@ -2688,12 +2737,12 @@ def admin_create_teacher(request: Request) -> Response:
     access_code = request.form.get("access_code", "").strip().upper()
     if not name:
         set_flash(request.db, request.session["id"], "강사 이름을 입력해 주세요.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("teacher-create"))
     if not username:
         username = generate_teacher_username(request.db, name)
     if request.db.execute("SELECT 1 FROM teachers WHERE username = ?", (username,)).fetchone():
         set_flash(request.db, request.session["id"], "이미 사용 중인 강사 아이디입니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("teacher-create"))
     if not raw_password:
         raw_password = generate_teacher_password()
     if not access_code:
@@ -2723,14 +2772,14 @@ def admin_create_teacher(request: Request) -> Response:
         request.db.commit()
     except sqlite3.IntegrityError:
         set_flash(request.db, request.session["id"], "이미 사용 중인 강사 코드 또는 계정 정보입니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("teacher-create"))
     set_flash(
         request.db,
         request.session["id"],
         f"{name} 강사가 등록되었습니다. 아이디 {username} / 비밀번호 {raw_password} / 코드 {access_code}",
         "success",
     )
-    return redirect_response("/admin")
+    return redirect_response(admin_panel_path("teacher-create"))
 
 
 @route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/assign")
@@ -2750,7 +2799,7 @@ def admin_assign_teacher_to_program(request: Request, teacher_id: str) -> Respon
     ).fetchone()
     if not teacher or not program:
         set_flash(request.db, request.session["id"], "배정할 강사 또는 캠프 정보를 찾을 수 없습니다.", "error")
-        return redirect_response("/admin#teacher-manage")
+        return redirect_response(admin_panel_path("teacher-list"))
 
     exists = request.db.execute(
         "SELECT 1 FROM program_teachers WHERE teacher_id = ? AND program_id = ?",
@@ -2758,7 +2807,7 @@ def admin_assign_teacher_to_program(request: Request, teacher_id: str) -> Respon
     ).fetchone()
     if exists:
         set_flash(request.db, request.session["id"], "이미 배정된 캠프입니다.", "info")
-        return redirect_response("/admin#teacher-manage")
+        return redirect_response(admin_panel_path("teacher-list"))
 
     request.db.execute(
         """
@@ -2774,7 +2823,7 @@ def admin_assign_teacher_to_program(request: Request, teacher_id: str) -> Respon
         f"{teacher['name']} 강사를 {program['title']} ({program['program_code']}) 캠프에 배정했습니다.",
         "success",
     )
-    return redirect_response("/admin#teacher-manage")
+    return redirect_response(admin_panel_path("teacher-list"))
 
 
 @route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/programs/(?P<program_id>\d+)/remove")
@@ -2797,7 +2846,7 @@ def admin_remove_teacher_from_program(request: Request, teacher_id: str, program
     ).fetchone()
     if not teacher or not program or not assignment:
         set_flash(request.db, request.session["id"], "배정 취소할 정보를 찾을 수 없습니다.", "error")
-        return redirect_response("/admin#teacher-manage")
+        return redirect_response(admin_panel_path("teacher-list"))
 
     assigned_count_row = request.db.execute(
         "SELECT COUNT(*) AS count FROM program_teachers WHERE program_id = ?",
@@ -2811,7 +2860,7 @@ def admin_remove_teacher_from_program(request: Request, teacher_id: str, program
             "캠프에는 최소 한 명의 강사가 배정되어 있어야 하므로 마지막 강사는 배정 취소할 수 없습니다.",
             "error",
         )
-        return redirect_response("/admin#teacher-manage")
+        return redirect_response(admin_panel_path("teacher-list"))
 
     next_teacher = request.db.execute(
         """
@@ -2840,7 +2889,7 @@ def admin_remove_teacher_from_program(request: Request, teacher_id: str, program
         f"{teacher['name']} 강사의 {program['title']} ({program['program_code']}) 배정을 취소했습니다.",
         "success",
     )
-    return redirect_response("/admin#teacher-manage")
+    return redirect_response(admin_panel_path("teacher-list"))
 
 
 @route("POST", r"/admin/templates")
@@ -2854,7 +2903,7 @@ def admin_create_template(request: Request) -> Response:
     questions = parse_questions_from_text(request.form.get("questions", ""))
     if not name or not questions:
         set_flash(request.db, request.session["id"], "프로그램 유형명과 질문 목록을 모두 입력해 주세요.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-create"))
     try:
         request.db.execute(
             """
@@ -2866,9 +2915,9 @@ def admin_create_template(request: Request) -> Response:
         request.db.commit()
     except sqlite3.IntegrityError:
         set_flash(request.db, request.session["id"], "같은 이름의 프로그램 유형이 이미 존재합니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-create"))
     set_flash(request.db, request.session["id"], f"{name} 유형이 추가되었습니다.", "success")
-    return redirect_response("/admin")
+    return redirect_response(admin_panel_path("template-create"))
 
 
 @route("POST", r"/admin/templates/(?P<template_id>\d+)")
@@ -2882,7 +2931,7 @@ def admin_update_template(request: Request, template_id: str) -> Response:
     questions = parse_questions_from_text(request.form.get("questions", ""))
     if not name or not questions:
         set_flash(request.db, request.session["id"], "유형명, 프롬프트, 질문 내용을 확인해 주세요.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-manage"))
 
     exists = request.db.execute(
         "SELECT 1 FROM program_templates WHERE name = ? AND id != ?",
@@ -2890,7 +2939,7 @@ def admin_update_template(request: Request, template_id: str) -> Response:
     ).fetchone()
     if exists:
         set_flash(request.db, request.session["id"], "같은 이름의 프로그램 유형이 이미 존재합니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-manage"))
 
     request.db.execute(
         """
@@ -2902,7 +2951,7 @@ def admin_update_template(request: Request, template_id: str) -> Response:
     )
     request.db.commit()
     set_flash(request.db, request.session["id"], f"{name} 유형이 수정되었습니다.", "success")
-    return redirect_response("/admin")
+    return redirect_response(admin_panel_path("template-manage"))
 
 
 @route("POST", r"/admin/templates/(?P<template_id>\d+)/delete")
@@ -2916,7 +2965,7 @@ def admin_delete_template(request: Request, template_id: str) -> Response:
     ).fetchone()
     if not template:
         set_flash(request.db, request.session["id"], "삭제할 프로그램 유형을 찾을 수 없습니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-manage"))
 
     usage_count = request.db.execute(
         "SELECT COUNT(*) AS count FROM programs WHERE template_id = ?",
@@ -2929,12 +2978,12 @@ def admin_delete_template(request: Request, template_id: str) -> Response:
             f"{template['name']} 유형은 현재 {usage_count}개 프로그램에서 사용 중이라 삭제할 수 없습니다.",
             "error",
         )
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("template-manage"))
 
     request.db.execute("DELETE FROM program_templates WHERE id = ?", (template_id,))
     request.db.commit()
     set_flash(request.db, request.session["id"], f"{template['name']} 유형이 삭제되었습니다.", "success")
-    return redirect_response("/admin")
+    return redirect_response(admin_panel_path("template-manage"))
 
 
 @route("POST", r"/admin/programs")
@@ -2961,7 +3010,7 @@ def admin_create_program(request: Request) -> Response:
 
     if not all([title, school_name, school_level, year, semester, template_id]) or not teacher_ids:
         set_flash(request.db, request.session["id"], "프로그램 개설 항목을 모두 입력해 주세요.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("camp-create"))
 
     template = request.db.execute(
         "SELECT * FROM program_templates WHERE id = ?",
@@ -2974,7 +3023,7 @@ def admin_create_program(request: Request) -> Response:
     ).fetchall()
     if not template or len(teachers) != len(teacher_ids):
         set_flash(request.db, request.session["id"], "템플릿 또는 강사 정보가 올바르지 않습니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("camp-create"))
 
     program_code = generate_program_code(request.db)
     program_params = (
@@ -3035,7 +3084,7 @@ def admin_create_program(request: Request) -> Response:
         f"프로그램이 개설되었습니다. 학생용 프로그램 코드는 {program_code} 입니다. 배정 강사는 {len(teacher_ids)}명입니다.",
         "success",
     )
-    return redirect_response("/admin")
+    return redirect_response(admin_panel_path("camp-create"))
 
 
 @route("POST", r"/admin/programs/(?P<program_id>\d+)/delete")
@@ -3049,7 +3098,7 @@ def admin_delete_program(request: Request, program_id: str) -> Response:
     ).fetchone()
     if not program:
         set_flash(request.db, request.session["id"], "삭제할 프로그램을 찾을 수 없습니다.", "error")
-        return redirect_response("/admin")
+        return redirect_response(admin_panel_path("camp-list"))
 
     request.db.execute("DELETE FROM sessions WHERE program_id = ?", (program_id,))
     request.db.execute("DELETE FROM programs WHERE id = ?", (program_id,))
@@ -3062,7 +3111,8 @@ def admin_delete_program(request: Request, program_id: str) -> Response:
     )
     if wants_ajax(request):
         return text_response("ok")
-    return redirect_response("/admin")
+    redirect_panel = request.form.get("redirect_panel", "").strip()
+    return redirect_response(admin_panel_path(redirect_panel or "camp-list"))
 
 
 @route("GET", r"/admin/programs/(?P<program_id>\d+)")

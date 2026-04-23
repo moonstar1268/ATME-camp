@@ -1634,6 +1634,123 @@ button:disabled {
   color: var(--text-faint);
 }
 
+.admin-panel-page {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.admin-panel-stack {
+  display: grid;
+  gap: 24px;
+}
+
+.admin-surface-card {
+  position: relative;
+  padding: 76px 28px 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 28px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-surface-badge {
+  position: absolute;
+  top: 18px;
+  left: 24px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: rgba(21, 127, 111, 0.1);
+  border: 1px solid rgba(21, 127, 111, 0.18);
+  color: var(--admin);
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-wire-form {
+  display: grid;
+  gap: 26px;
+}
+
+.admin-wire-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-wire-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-wire-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 0 18px;
+  border-radius: 16px;
+  background: rgba(31, 111, 214, 0.1);
+  color: var(--primary-strong);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.admin-wire-controls {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-wire-controls-split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-wire-field {
+  margin: 0;
+}
+
+.admin-wire-note {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(21, 127, 111, 0.12);
+  background: rgba(21, 127, 111, 0.05);
+}
+
+.admin-wire-note strong {
+  font-size: 0.95rem;
+}
+
+.admin-wire-note p {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
+.admin-wire-actions {
+  margin-top: 4px;
+}
+
+.admin-list-shell .data-table-card {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-teacher-picker {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
 .empty-state {
   display: grid;
   gap: 8px;
@@ -1783,6 +1900,10 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .admin-wire-row {
+    grid-template-columns: 1fr;
+  }
+
   .student-question-layout,
   .student-writing-split,
   .teacher-home-grid,
@@ -1838,6 +1959,7 @@ button:disabled {
   .info-grid,
   .answer-grid,
   .modal-grid,
+  .admin-wire-controls-split,
   .student-stage-display-grid,
   .student-stage-display-grid-3,
   .student-writing-body-grid,
@@ -1855,7 +1977,8 @@ button:disabled {
   .login-side,
   .login-card,
   .card,
-  .completion-card {
+  .completion-card,
+  .admin-surface-card {
     padding: 22px;
   }
 
@@ -1879,6 +2002,14 @@ button:disabled {
 
   .login-stage-card .tab-panel {
     padding: 24px 18px 20px;
+  }
+
+  .admin-surface-card {
+    padding-top: 72px;
+  }
+
+  .admin-surface-badge {
+    left: 18px;
   }
 
   .login-stage-body {
