@@ -1709,6 +1709,10 @@ button:disabled {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.admin-wire-controls-triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .admin-wire-field {
   margin: 0;
 }
@@ -1749,6 +1753,28 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 18px;
   background: #ffffff;
+}
+
+.admin-assignment-toolbar {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) auto;
+}
+
+.admin-floating-search {
+  justify-self: end;
+  width: min(100%, 320px);
+}
+
+.admin-x-button {
+  width: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 1.15rem;
+  font-weight: 800;
 }
 
 .empty-state {
@@ -1960,6 +1986,7 @@ button:disabled {
   .answer-grid,
   .modal-grid,
   .admin-wire-controls-split,
+  .admin-wire-controls-triple,
   .student-stage-display-grid,
   .student-stage-display-grid-3,
   .student-writing-body-grid,

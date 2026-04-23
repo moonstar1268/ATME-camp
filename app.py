@@ -736,6 +736,8 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
                 email TEXT,
                 access_code TEXT NOT NULL UNIQUE,
                 university TEXT DEFAULT '',
+                school_name TEXT DEFAULT '',
+                department_name TEXT DEFAULT '',
                 username TEXT DEFAULT '',
                 password_hash TEXT DEFAULT '',
                 temporary_password TEXT DEFAULT '',
@@ -849,6 +851,10 @@ def ensure_teacher_schema(db: sqlite3.Connection) -> None:
     columns = set(db.column_names("teachers"))
     if "university" not in columns:
         db.execute("ALTER TABLE teachers ADD COLUMN university TEXT DEFAULT ''")
+    if "school_name" not in columns:
+        db.execute("ALTER TABLE teachers ADD COLUMN school_name TEXT DEFAULT ''")
+    if "department_name" not in columns:
+        db.execute("ALTER TABLE teachers ADD COLUMN department_name TEXT DEFAULT ''")
     if "username" not in columns:
         db.execute("ALTER TABLE teachers ADD COLUMN username TEXT DEFAULT ''")
     if "password_hash" not in columns:
@@ -861,11 +867,27 @@ def ensure_teacher_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE teachers ADD COLUMN academic_info TEXT DEFAULT ''")
     db.commit()
 
-    rows = db.execute("SELECT id, name, username, password_hash, temporary_password, access_code FROM teachers").fetchall()
+    rows = db.execute(
+        """
+        SELECT
+            id,
+            name,
+            username,
+            password_hash,
+            temporary_password,
+            access_code,
+            university,
+            school_name,
+            department_name
+        FROM teachers
+        """
+    ).fetchall()
     for row in rows:
         username = (row["username"] or "").strip()
         temp_password = (row["temporary_password"] or "").strip()
         password_value = (row["password_hash"] or "").strip()
+        school_name = (row["school_name"] or "").strip()
+        department_name = (row["department_name"] or "").strip()
         changed = False
         if not username:
             username = generate_teacher_username(db, row["name"], teacher_id=row["id"])
@@ -876,14 +898,17 @@ def ensure_teacher_schema(db: sqlite3.Connection) -> None:
         if not password_value:
             password_value = password_hash(temp_password)
             changed = True
+        if not school_name and (row["university"] or "").strip():
+            school_name = (row["university"] or "").strip()
+            changed = True
         if changed:
             db.execute(
                 """
                 UPDATE teachers
-                SET username = ?, temporary_password = ?, password_hash = ?
+                SET username = ?, temporary_password = ?, password_hash = ?, school_name = ?, department_name = ?
                 WHERE id = ?
                 """,
-                (username, temp_password, password_value, row["id"]),
+                (username, temp_password, password_value, school_name, department_name, row["id"]),
             )
         db.commit()
 
@@ -1173,16 +1198,18 @@ def seed_defaults(db: sqlite3.Connection) -> None:
         db.execute(
             """
             INSERT INTO teachers (
-                name, email, access_code, university, username, password_hash,
-                temporary_password, memo, academic_info, created_at
+                name, email, access_code, university, school_name, department_name,
+                username, password_hash, temporary_password, memo, academic_info, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 "김강사",
                 "teacher@example.com",
                 "TCHR2026",
                 "KAIST",
+                "KAIST",
+                "박사과정",
                 "teacher001",
                 password_hash(default_teacher_password),
                 default_teacher_password,
@@ -2304,6 +2331,8 @@ def query_teacher_assignments(db: sqlite3.Connection) -> list[sqlite3.Row]:
             t.username AS teacher_username,
             t.access_code AS teacher_access_code,
             t.university AS teacher_university,
+            t.school_name AS teacher_school_name,
+            t.department_name AS teacher_department_name,
             t.academic_info AS teacher_academic_info,
             p.id AS program_id,
             p.title AS program_title,
@@ -2730,6 +2759,8 @@ def admin_create_teacher(request: Request) -> Response:
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
     university = request.form.get("university", "").strip()
+    school_name = request.form.get("school_name", "").strip()
+    department_name = request.form.get("department_name", "").strip()
     username = request.form.get("username", "").strip().lower()
     raw_password = request.form.get("password", "").strip()
     memo = request.form.get("memo", "").strip()
@@ -2751,16 +2782,18 @@ def admin_create_teacher(request: Request) -> Response:
         request.db.execute(
             """
             INSERT INTO teachers (
-                name, email, access_code, university, username, password_hash,
-                temporary_password, memo, academic_info, created_at
+                name, email, access_code, university, school_name, department_name,
+                username, password_hash, temporary_password, memo, academic_info, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
                 email,
                 access_code,
                 university,
+                school_name or university,
+                department_name,
                 username,
                 password_hash(raw_password),
                 raw_password,
