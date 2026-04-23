@@ -3193,12 +3193,39 @@ def teacher_dashboard(request: Request) -> Response:
         "teacher_submitted": len([program for program in programs if program["status"] == "teacher_submitted"]),
         "student_submissions": sum(program["submission_count"] for program in programs),
     }
+    spotlight_program = programs[0] if programs else None
+    recent_submission_row = request.db.execute(
+        """
+        SELECT
+            s.student_name,
+            s.student_number,
+            s.student_submitted_at,
+            p.id AS program_id,
+            p.program_code,
+            p.title AS program_title,
+            p.school_name,
+            p.year,
+            p.semester
+        FROM submissions s
+        JOIN programs p ON p.id = s.program_id
+        WHERE EXISTS (
+            SELECT 1 FROM program_teachers pt
+            WHERE pt.program_id = p.id AND pt.teacher_id = ?
+        )
+        ORDER BY COALESCE(s.teacher_updated_at, s.student_submitted_at) DESC, s.id DESC
+        LIMIT 1
+        """,
+        (teacher["id"],),
+    ).fetchone()
+    recent_submission = dict(recent_submission_row) if recent_submission_row else None
     return render_template(
         request,
         "teacher_dashboard.html",
         teacher=teacher,
         programs=programs,
         metrics=metrics,
+        spotlight_program=spotlight_program,
+        recent_submission=recent_submission,
     )
 
 
