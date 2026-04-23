@@ -378,6 +378,10 @@ code {
   justify-content: flex-end;
 }
 
+.page-actions-split {
+  justify-content: space-between;
+}
+
 .primary-button,
 .secondary-button,
 .ghost-button-inline,
@@ -961,6 +965,118 @@ button:disabled {
   margin-top: 20px;
 }
 
+.student-start-card {
+  max-width: 1020px;
+  margin: 0 auto;
+}
+
+.student-start-heading {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.student-start-heading h2 {
+  margin: 0;
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  line-height: 1.1;
+}
+
+.student-stage-frame {
+  position: relative;
+  margin-top: 18px;
+  padding: 34px 24px 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 24px;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.student-stage-frame-badge {
+  position: absolute;
+  top: -16px;
+  left: 22px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.18);
+  color: var(--teacher);
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+}
+
+.student-stage-display-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.student-stage-display-card {
+  display: grid;
+  gap: 10px;
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+.student-stage-display-card-wide {
+  grid-column: 1 / -1;
+  min-height: 120px;
+}
+
+.student-stage-display-label {
+  display: inline-flex;
+  align-items: center;
+  align-self: start;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: rgba(31, 111, 214, 0.1);
+  color: var(--primary-strong);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.student-stage-display-card strong {
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.student-stage-input-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.student-stage-input-row {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+.student-stage-input-row span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: rgba(31, 111, 214, 0.1);
+  color: var(--primary-strong);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.student-stage-input-row input {
+  min-height: 52px;
+}
+
 .student-question-main,
 .student-question-side {
   display: grid;
@@ -1342,6 +1458,10 @@ button:disabled {
   .info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .student-stage-input-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1080px) {
@@ -1376,6 +1496,7 @@ button:disabled {
   .info-grid,
   .answer-grid,
   .modal-grid,
+  .student-stage-display-grid,
   .reference-select-grid-school,
   .reference-select-grid-curriculum {
     grid-template-columns: 1fr;
@@ -1441,6 +1562,28 @@ button:disabled {
 
   .login-stage-actions .primary-button {
     width: 100%;
+  }
+
+  .student-stage-frame {
+    padding: 30px 18px 18px;
+  }
+
+  .student-stage-frame-badge {
+    left: 18px;
+    min-height: 36px;
+    font-size: 0.92rem;
+  }
+
+  .student-stage-input-row span {
+    justify-content: flex-start;
+  }
+
+  .page-actions-split {
+    justify-content: stretch;
+  }
+
+  .page-actions-split > * {
+    flex: 1 1 100%;
   }
 
   .workspace-topbar {

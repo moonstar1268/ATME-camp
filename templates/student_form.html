@@ -19,6 +19,7 @@
   {% endif %}
 
   <form action="/student/submit" method="post" class="stack-form" id="student-questionnaire-form">
+    <input type="hidden" name="desired_major" value="{{ form_data.desired_major }}" />
     <section class="page-section">
       <div class="card">
         <div class="card-header">
@@ -52,23 +53,11 @@
           <div class="student-question-main">
             <section class="info-section-card">
               <div class="section-head">
-                <h3>학생 정보 / 교과 연계</h3>
+                <h3>교과 연계 정보</h3>
                 <p>이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.</p>
               </div>
 
               <div class="form-grid">
-                <label class="form-field field-span-2">
-                  <span>희망전공</span>
-                  <input
-                    type="text"
-                    name="desired_major"
-                    value="{{ form_data.desired_major }}"
-                    placeholder="예: 화학공학과"
-                    {% if is_locked %}disabled{% endif %}
-                    required
-                  />
-                </label>
-
                 {% for field in question_schema.flat_fields %}
                   {% if field.id in intro_ids %}
                     <label class="form-field">
@@ -89,6 +78,8 @@
               <div class="student-identity-inline">
                 <span>학생 식별 정보</span>
                 <strong>{{ student_name }} / {{ student_number }}</strong>
+                <span>희망 전공</span>
+                <strong>{{ form_data.desired_major }}</strong>
                 <a href="/student/start?change=1" class="ghost-link">이름·학번 다시 입력</a>
               </div>
 

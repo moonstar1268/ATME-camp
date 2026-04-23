@@ -1846,6 +1846,12 @@ def get_student_number_from_session(request: Request) -> str:
     return str((request.session.get("context") or {}).get("student_number", "")).strip()
 
 
+def get_student_desired_major_from_session(request: Request) -> str:
+    if not request.session or request.session["role"] != "student":
+        return ""
+    return str((request.session.get("context") or {}).get("desired_major", "")).strip()
+
+
 def collect_student_answers(
     request: Request,
     fields: list[dict[str, Any]],
@@ -1987,6 +1993,7 @@ def render_student_form_page(
     question_schema = get_program_form_schema(program)
     student_name = (form_data or {}).get("student_name") or get_student_name_from_session(request)
     student_number = (form_data or {}).get("student_number") or get_student_number_from_session(request)
+    desired_major = (form_data or {}).get("desired_major") or get_student_desired_major_from_session(request)
     draft = (
         get_student_draft(request.db, int(program["id"]), student_name, student_number)
         if student_name and student_number
@@ -1995,6 +2002,7 @@ def render_student_form_page(
     resolved_form_data = form_data or build_student_form_data(
         student_name=student_name,
         student_number=student_number,
+        desired_major=desired_major,
         draft=draft,
     )
     return render_template(
@@ -3335,7 +3343,8 @@ def student_start(request: Request) -> Response:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
     student_name = get_student_name_from_session(request)
     student_number = get_student_number_from_session(request)
-    if student_name and student_number and request.query.get("change", "") != "1":
+    desired_major = get_student_desired_major_from_session(request)
+    if student_name and student_number and desired_major and request.query.get("change", "") != "1":
         return redirect_response("/student")
     draft = (
         get_student_draft(request.db, int(program["id"]), student_name, student_number)
@@ -3348,6 +3357,7 @@ def student_start(request: Request) -> Response:
         program=program,
         student_name=student_name,
         student_number=student_number,
+        desired_major=desired_major or (draft.get("desired_major", "") if draft else ""),
         draft_exists=bool(draft),
         draft_updated_at=draft["updated_at"] if draft else "",
         error="",
@@ -3364,22 +3374,33 @@ def student_start_submit(request: Request) -> Response:
         return redirect_response("/?role=student&error=프로그램%20정보를%20찾을%20수%20없습니다.")
     student_name = request.form.get("student_name", "").strip()
     student_number = request.form.get("student_number", "").strip()
-    if not student_name or not student_number:
+    desired_major = request.form.get("desired_major", "").strip()
+    if not student_name or not student_number or not desired_major:
+        draft = (
+            get_student_draft(request.db, int(program["id"]), student_name, student_number)
+            if student_name and student_number
+            else None
+        )
         return render_template(
             request,
             "student_start.html",
             program=program,
             student_name=student_name,
             student_number=student_number,
-            draft_exists=False,
-            draft_updated_at="",
-            error="이름과 학번을 모두 입력해 주세요.",
+            desired_major=desired_major or (draft.get("desired_major", "") if draft else ""),
+            draft_exists=bool(draft),
+            draft_updated_at=draft["updated_at"] if draft else "",
+            error="학생명, 학번, 희망 전공을 모두 입력해 주세요.",
         )
 
     updated_context = update_session_context(
         request.db,
         request.session["id"],
-        {"student_name": student_name, "student_number": student_number},
+        {
+            "student_name": student_name,
+            "student_number": student_number,
+            "desired_major": desired_major,
+        },
     )
     if request.session:
         request.session["context"] = updated_context
@@ -3409,7 +3430,7 @@ def student_save_draft_action(request: Request) -> Response:
 
     question_schema = get_program_form_schema(program)
     fields = question_schema["flat_fields"]
-    desired_major = request.form.get("desired_major", "").strip()
+    desired_major = request.form.get("desired_major", "").strip() or get_student_desired_major_from_session(request)
     _, answers_map = collect_student_answers(request, fields)
     has_content = bool(
         desired_major
@@ -3458,7 +3479,7 @@ def student_submit(request: Request) -> Response:
 
     question_schema = get_program_form_schema(program)
     fields = question_schema["flat_fields"]
-    desired_major = request.form.get("desired_major", "").strip()
+    desired_major = request.form.get("desired_major", "").strip() or get_student_desired_major_from_session(request)
 
     answers, answers_map = collect_student_answers(request, fields)
 
