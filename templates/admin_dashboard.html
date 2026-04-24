@@ -5,7 +5,6 @@
 {% block workspace_actions %}
   <div class="badge-row">
     <span class="status-badge is-admin">{{ admin.display_name }}</span>
-    <a href="/admin/download.xlsx" class="secondary-button compact-button">전체 Excel 다운로드</a>
   </div>
 {% endblock %}
 
@@ -16,41 +15,14 @@
     <section class="page-section admin-panel-page">
       <div class="admin-panel-stack">
         <div class="admin-surface-card">
-          <div class="admin-surface-badge">캠프 개설</div>
-          <form action="/admin/programs" method="post" class="stack-form admin-wire-form">
-            <div class="admin-wire-grid">
-              <div class="admin-wire-row">
-                <div class="admin-wire-label">교급 선택</div>
-                <div class="admin-wire-controls admin-wire-controls-split">
-                  <label class="form-field admin-wire-field">
-                    <span>교급</span>
-                    <select name="school_level" required>
-                      <option value="">선택</option>
-                      {% for level in school_levels %}
-                        <option value="{{ level }}">{{ level }}</option>
-                      {% endfor %}
-                    </select>
-                  </label>
-                  <div class="admin-wire-note">
-                    <strong>운영 기준 안내</strong>
-                    <p>학교 선택에 맞는 교급을 먼저 선택한 뒤 지역과 학교를 이어서 골라 주세요.</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="admin-wire-row">
-                <div class="admin-wire-label">지역 선택</div>
-                <div class="admin-wire-controls">
-                  <label class="form-field admin-wire-field">
-                    <span>학교</span>
-                    <input type="text" name="school_name" placeholder="예: 충주대원고등학교" required />
-                  </label>
-                </div>
-              </div>
-
-              <div class="admin-wire-row">
-                <div class="admin-wire-label">학년도 / 학기</div>
-                <div class="admin-wire-controls admin-wire-controls-split">
+        <div class="admin-surface-badge">캠프 개설</div>
+        <form action="/admin/programs" method="post" class="stack-form admin-wire-form">
+          <input type="hidden" name="school_name" value="-" />
+          <input type="hidden" name="school_level" value="-" />
+          <div class="admin-wire-grid">
+            <div class="admin-wire-row">
+              <div class="admin-wire-label">학년도 / 학기</div>
+              <div class="admin-wire-controls admin-wire-controls-split">
                   <label class="form-field admin-wire-field">
                     <span>학년도</span>
                     <input type="number" name="year" min="2025" max="2100" value="2026" required />
@@ -276,14 +248,10 @@
 
             <div class="admin-wire-row">
               <div class="admin-wire-label">대학</div>
-              <div class="admin-wire-controls admin-wire-controls-triple">
+              <div class="admin-wire-controls admin-wire-controls-split">
                 <label class="form-field admin-wire-field">
                   <span>대학</span>
                   <input type="text" name="university" placeholder="예: KAIST" />
-                </label>
-                <label class="form-field admin-wire-field">
-                  <span>학교명</span>
-                  <input type="text" name="school_name" placeholder="예: 한국과학기술원" />
                 </label>
                 <label class="form-field admin-wire-field">
                   <span>학과</span>

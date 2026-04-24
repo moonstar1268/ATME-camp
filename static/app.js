@@ -488,6 +488,7 @@ function initStudentReviewModal() {
 
 const referenceCache = {
   cities: null,
+  careers: null,
   curricula: null,
   districts: new Map(),
   schools: new Map(),
@@ -540,6 +541,13 @@ async function loadCurricula() {
     referenceCache.curricula = await readReferenceData("/references/curricula");
   }
   return referenceCache.curricula;
+}
+
+async function loadDesiredCareers() {
+  if (!referenceCache.careers) {
+    referenceCache.careers = await readReferenceData("/references/desired-careers");
+  }
+  return referenceCache.careers;
 }
 
 async function loadCurriculumUnits(curriculumId) {
@@ -666,7 +674,7 @@ function initAdminSchoolSelector() {
 
   const help = document.createElement("p");
   help.className = "reference-inline-help";
-  help.textContent = "ATME 운영과 같은 흐름으로 교급, 지역, 학교를 순서대로 선택하면 프로그램 학교명이 자동 입력됩니다.";
+  help.textContent = "교급, 지역, 학교를 순서대로 선택하면 프로그램 학교명이 자동 입력됩니다.";
 
   selector.appendChild(levelRow);
   selector.appendChild(searchRow);
@@ -823,48 +831,101 @@ function initAdminSchoolSelector() {
 
 function initStudentCurriculumSelectors() {
   const form = document.querySelector("form[action='/student/submit']");
-  if (!form) {
+  const selectionRoot = form?.querySelector("[data-student-selection-root]");
+  const selectionSource = selectionRoot?.querySelector("[data-student-selection-source]");
+  if (!form || !selectionRoot || !selectionSource) {
     return;
   }
 
-  form.querySelectorAll("input[name^='linked_subject_']").forEach((subjectInput) => {
-    const suffix = subjectInput.name.replace("linked_subject_", "");
+  if (selectionRoot.dataset.selectionReady === "true") {
+    return;
+  }
+  selectionRoot.dataset.selectionReady = "true";
+
+  const curriculumPairs = Array.from({ length: 2 }, (_, index) => {
+    const suffix = String(index + 1);
+    const subjectInput =
+      form.querySelector(`input[name='linked_subject_${suffix}']`) ||
+      form.querySelector(`textarea[name='linked_subject_${suffix}']`);
     const unitInput =
       form.querySelector(`input[name='linked_unit_${suffix}']`) ||
       form.querySelector(`textarea[name='linked_unit_${suffix}']`);
-    const subjectCard = subjectInput.closest("label");
-    const unitCard = unitInput?.closest("label");
 
-    if (!unitInput || !subjectCard || !unitCard) {
-      return;
-    }
-    if (subjectCard.querySelector("[data-curriculum-selector-ui]")) {
-      return;
+    if (!subjectInput || !unitInput) {
+      return null;
     }
 
-    subjectCard.classList.add("curriculum-selector-card");
-    unitCard.hidden = true;
-
+    const subjectLabel = subjectInput.closest("label");
+    const unitLabel = unitInput.closest("label");
+    if (subjectLabel) {
+      subjectLabel.hidden = true;
+    }
+    if (unitLabel) {
+      unitLabel.hidden = true;
+    }
     if (subjectInput.tagName === "INPUT") {
       subjectInput.type = "hidden";
     } else {
       subjectInput.hidden = true;
     }
-
     if (unitInput.tagName === "INPUT") {
       unitInput.type = "hidden";
     } else {
       unitInput.hidden = true;
     }
 
-    const caption = subjectCard.querySelector("span");
-    if (caption) {
-      caption.textContent = `교과/단원 선택 ${suffix}`;
-    }
+    return { suffix, subjectInput, unitInput };
+  }).filter(Boolean);
 
-    const selector = document.createElement("div");
-    selector.className = "reference-enhancer compact-top";
-    selector.dataset.curriculumSelectorUi = "true";
+  const careerGoalInput =
+    form.querySelector("input[name='career_goal']") || form.querySelector("textarea[name='career_goal']");
+  const careerMajorInput =
+    form.querySelector("input[name='career_major']") || form.querySelector("textarea[name='career_major']");
+
+  const careerGoalLabel = careerGoalInput?.closest("label");
+  const careerMajorLabel = careerMajorInput?.closest("label");
+  if (careerGoalLabel) {
+    careerGoalLabel.hidden = true;
+  }
+  if (careerMajorLabel) {
+    careerMajorLabel.hidden = true;
+  }
+  if (careerGoalInput) {
+    if (careerGoalInput.tagName === "INPUT") {
+      careerGoalInput.type = "hidden";
+    } else {
+      careerGoalInput.hidden = true;
+    }
+  }
+  if (careerMajorInput) {
+    if (careerMajorInput.tagName === "INPUT") {
+      careerMajorInput.type = "hidden";
+    } else {
+      careerMajorInput.hidden = true;
+    }
+  }
+
+  const layout = document.createElement("div");
+  layout.className = "student-selection-layout";
+
+  const curriculumColumn = document.createElement("div");
+  curriculumColumn.className = "student-selection-column";
+  const careerColumn = document.createElement("div");
+  careerColumn.className = "student-selection-column";
+
+  selectionRoot.appendChild(layout);
+  layout.appendChild(curriculumColumn);
+  layout.appendChild(careerColumn);
+  selectionSource.hidden = true;
+
+  curriculumPairs.forEach((pair) => {
+    const group = document.createElement("div");
+    group.className = "student-selector-group";
+
+    const title = document.createElement("h5");
+    title.textContent = `교과 선택 ${pair.suffix}`;
+    const description = document.createElement("p");
+    description.textContent = "이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.";
 
     const grid = document.createElement("div");
     grid.className = "reference-select-grid reference-select-grid-curriculum";
@@ -880,37 +941,37 @@ function initStudentCurriculumSelectors() {
     grid.appendChild(createReferenceField("세부 단원", subUnitSelect));
 
     const summary = document.createElement("p");
-    summary.className = "reference-summary-text";
+    summary.className = "student-selector-summary";
 
-    const help = document.createElement("p");
-    help.className = "reference-inline-help";
-    help.textContent = "이번 학기에 수강하는 과목으로 선택해주시기 바랍니다.";
-
+    const toolbar = document.createElement("div");
+    toolbar.className = "student-selector-toolbar";
     const clearButton = document.createElement("button");
     clearButton.type = "button";
     clearButton.className = "reference-clear-button";
     clearButton.textContent = "선택 초기화";
+    toolbar.appendChild(clearButton);
 
-    selector.appendChild(grid);
-    selector.appendChild(summary);
-    selector.appendChild(help);
-    selector.appendChild(clearButton);
-    subjectCard.appendChild(selector);
+    group.appendChild(title);
+    group.appendChild(description);
+    group.appendChild(grid);
+    group.appendChild(summary);
+    group.appendChild(toolbar);
+    curriculumColumn.appendChild(group);
 
     const updateSummary = () => {
-      if (subjectInput.value && unitInput.value) {
-        summary.textContent = `선택한 교과/단원: ${subjectInput.value} > ${unitInput.value}`;
+      if (pair.subjectInput.value && pair.unitInput.value) {
+        summary.textContent = `${pair.subjectInput.value} > ${pair.unitInput.value}`;
         return;
       }
-      if (subjectInput.value) {
-        summary.textContent = `선택한 교과: ${subjectInput.value}`;
+      if (pair.subjectInput.value) {
+        summary.textContent = `${pair.subjectInput.value} 선택 완료`;
         return;
       }
-      summary.textContent = "선택한 교과/단원이 아직 없습니다.";
+      summary.textContent = "아직 선택한 교과가 없습니다.";
     };
 
     const resetSubUnits = () => {
-      unitInput.value = "";
+      pair.unitInput.value = "";
       subUnitSelect.disabled = true;
       setSelectOptions(subUnitSelect, [], "세부 단원");
       updateSummary();
@@ -931,7 +992,7 @@ function initStudentCurriculumSelectors() {
         });
 
         const subjectOption = Array.from(subjectSelect.options).find(
-          (option) => option.textContent === subjectInput.value,
+          (option) => option.textContent === pair.subjectInput.value,
         );
         if (!subjectOption?.value) {
           updateSummary();
@@ -947,7 +1008,7 @@ function initStudentCurriculumSelectors() {
         });
 
         const chosenBigUnit = bigUnits.find((unit) =>
-          String(unitInput.value || "").startsWith(String(unit.curriculumUnitName || "")),
+          String(pair.unitInput.value || "").startsWith(String(unit.curriculumUnitName || "")),
         );
 
         if (chosenBigUnit?.curriculumUnitId) {
@@ -960,7 +1021,7 @@ function initStudentCurriculumSelectors() {
           });
 
           const chosenSubUnit = Array.from(subUnitSelect.options).find(
-            (option) => option.textContent === unitInput.value,
+            (option) => option.textContent === pair.unitInput.value,
           );
           if (chosenSubUnit?.value) {
             subUnitSelect.value = chosenSubUnit.value;
@@ -975,7 +1036,7 @@ function initStudentCurriculumSelectors() {
 
     subjectSelect.addEventListener("change", async () => {
       const selectedOption = subjectSelect.options[subjectSelect.selectedIndex];
-      subjectInput.value = selectedOption?.value ? selectedOption.textContent : "";
+      pair.subjectInput.value = selectedOption?.value ? selectedOption.textContent : "";
       resetUnitGroups();
 
       if (!subjectSelect.value) {
@@ -1002,6 +1063,7 @@ function initStudentCurriculumSelectors() {
         updateSummary();
         return;
       }
+
       try {
         const subUnits = await loadCurriculumSubUnits(unitGroupSelect.value);
         subUnitSelect.disabled = false;
@@ -1015,15 +1077,15 @@ function initStudentCurriculumSelectors() {
     });
 
     subUnitSelect.addEventListener("change", () => {
-      unitInput.value = subUnitSelect.options[subUnitSelect.selectedIndex]?.value
+      pair.unitInput.value = subUnitSelect.options[subUnitSelect.selectedIndex]?.value
         ? subUnitSelect.options[subUnitSelect.selectedIndex].textContent
         : "";
       updateSummary();
     });
 
     clearButton.addEventListener("click", () => {
-      subjectInput.value = "";
-      unitInput.value = "";
+      pair.subjectInput.value = "";
+      pair.unitInput.value = "";
       subjectSelect.value = "";
       resetUnitGroups();
       updateSummary();
@@ -1033,6 +1095,139 @@ function initStudentCurriculumSelectors() {
     updateSummary();
     restoreSelection();
   });
+
+  const careerPanel = document.createElement("div");
+  careerPanel.className = "student-career-panel";
+
+  const careerTitle = document.createElement("h5");
+  careerTitle.textContent = "진로 선택";
+  const careerDescription = document.createElement("p");
+  careerDescription.textContent = "세탐.com과 같은 방식으로 희망 진로 우선순위를 선택해 주세요.";
+
+  const careerGrid = document.createElement("div");
+  careerGrid.className = "student-career-grid";
+
+  const careerSelects = [1, 2, 3].map((priority) => {
+    const select = createSelect();
+    careerGrid.appendChild(createReferenceField(`${priority}순위`, select));
+    return select;
+  });
+
+  const careerSummary = document.createElement("p");
+  careerSummary.className = "student-career-summary";
+
+  const majorSummary = document.createElement("div");
+  majorSummary.className = "student-career-major-list";
+
+  careerPanel.appendChild(careerTitle);
+  careerPanel.appendChild(careerDescription);
+  careerPanel.appendChild(careerGrid);
+  careerPanel.appendChild(careerSummary);
+  careerPanel.appendChild(majorSummary);
+  careerColumn.appendChild(careerPanel);
+
+  const selectedCareerIds = ["", "", ""];
+  let careerOptions = [];
+
+  const buildCareerMap = () => {
+    const map = new Map();
+    careerOptions.forEach((career) => {
+      map.set(String(career.desiredCareerId), career);
+    });
+    return map;
+  };
+
+  const updateCareerOptions = () => {
+    const currentMap = buildCareerMap();
+
+    careerSelects.forEach((select, index) => {
+      const selectedValue = selectedCareerIds[index];
+      const otherSelected = selectedCareerIds.filter((value, position) => value && position !== index);
+      const items = careerOptions
+        .filter((career) => !otherSelected.includes(String(career.desiredCareerId)))
+        .map((career) => ({
+          id: String(career.desiredCareerId),
+          name: career.careerField,
+        }));
+
+      setSelectOptions(select, items, `${index + 1}순위`, {
+        valueKey: "id",
+        labelKey: "name",
+        selectedValue,
+      });
+
+      if (selectedValue && !currentMap.has(selectedValue)) {
+        selectedCareerIds[index] = "";
+      }
+      select.disabled = index > 0 && !selectedCareerIds[index - 1];
+    });
+  };
+
+  const updateCareerHiddenInputs = () => {
+    const careerMap = buildCareerMap();
+    const selectedCareers = selectedCareerIds
+      .map((value) => careerMap.get(String(value)))
+      .filter(Boolean);
+
+    const careerNames = selectedCareers.map((career) => career.careerField);
+    const majors = Array.from(
+      new Set(
+        selectedCareers
+          .flatMap((career) => normalizeKeywords(career.relatedMajors || ""))
+          .filter(Boolean),
+      ),
+    );
+
+    if (careerGoalInput) {
+      careerGoalInput.value = careerNames.join(", ");
+    }
+    if (careerMajorInput) {
+      careerMajorInput.value = majors.join(", ");
+    }
+
+    careerSummary.textContent = careerNames.length
+      ? `선택한 진로: ${careerNames.join(" / ")}`
+      : "아직 선택한 진로가 없습니다.";
+    majorSummary.textContent = majors.length
+      ? `연관 학과: ${majors.join(", ")}`
+      : "선택한 진로에 맞는 관련 학과가 이곳에 표시됩니다.";
+  };
+
+  careerSelects.forEach((select, index) => {
+    select.addEventListener("change", () => {
+      selectedCareerIds[index] = select.value || "";
+      for (let position = index + 1; position < selectedCareerIds.length; position += 1) {
+        if (!selectedCareerIds[index]) {
+          selectedCareerIds[position] = "";
+          careerSelects[position].value = "";
+        }
+      }
+      updateCareerOptions();
+      updateCareerHiddenInputs();
+    });
+  });
+
+  const restoreCareers = async () => {
+    try {
+      careerOptions = await loadDesiredCareers();
+      const existingNames = normalizeKeywords(careerGoalInput?.value || "");
+      existingNames.slice(0, 3).forEach((name, index) => {
+        const matched = careerOptions.find((career) => career.careerField === name);
+        if (matched) {
+          selectedCareerIds[index] = String(matched.desiredCareerId);
+        }
+      });
+      updateCareerOptions();
+      updateCareerHiddenInputs();
+    } catch {
+      careerSummary.textContent = "진로 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      majorSummary.textContent = careerMajorInput?.value || "직접 입력한 진로 정보가 있으면 제출 시 그대로 반영됩니다.";
+    }
+  };
+
+  updateCareerOptions();
+  updateCareerHiddenInputs();
+  restoreCareers();
 }
 
 function openDialog(dialog) {

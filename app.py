@@ -2594,6 +2594,11 @@ def reference_curricula_sub_units(_: Request, curriculum_unit_id: str) -> Respon
     return reference_proxy_response(f"/api/references/curriculumUnit/{curriculum_unit_id}")
 
 
+@route("GET", r"/references/desired-careers")
+def reference_desired_careers(_: Request) -> Response:
+    return reference_proxy_response("/api/references/desired-careers")
+
+
 @route("GET", r"/")
 def landing(request: Request) -> Response:
     active_role = request.query.get("role", "").strip()
@@ -3026,8 +3031,8 @@ def admin_create_program(request: Request) -> Response:
         return auth
 
     title = request.form.get("title", "").strip()
-    school_name = request.form.get("school_name", "").strip()
-    school_level = request.form.get("school_level", "").strip()
+    school_name = request.form.get("school_name", "").strip() or "-"
+    school_level = request.form.get("school_level", "").strip() or "-"
     year = request.form.get("year", "").strip()
     semester = request.form.get("semester", "").strip()
     template_id = request.form.get("template_id", "").strip()
@@ -3041,7 +3046,7 @@ def admin_create_program(request: Request) -> Response:
             if parsed not in teacher_ids:
                 teacher_ids.append(parsed)
 
-    if not all([title, school_name, school_level, year, semester, template_id]) or not teacher_ids:
+    if not all([title, year, semester, template_id]) or not teacher_ids:
         set_flash(request.db, request.session["id"], "프로그램 개설 항목을 모두 입력해 주세요.", "error")
         return redirect_response(admin_panel_path("camp-create"))
 

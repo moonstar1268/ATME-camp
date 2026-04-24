@@ -28,7 +28,7 @@
           <p class="section-kicker">STEP 2</p>
           <h2>자기평가 질문지 / 탐구내용</h2>
           <p class="card-description">
-            프로그램 정보와 학생 기본 정보를 확인한 뒤, 교과 연계 내용과 탐구 키워드, 본문 내용을 아래에서 순서대로 작성해 주세요.
+            프로그램 정보와 학생 기본 정보를 확인한 뒤, 교과와 진로를 먼저 정리하고 탐구 내용을 아래 순서대로 작성해 주세요.
           </p>
         </div>
 
@@ -78,17 +78,17 @@
           <div class="student-writing-header">
             <div>
               <h3>자기평가 질문지 : 교과</h3>
-              <p>이번 학기에 수강하는 과목을 기준으로 교과와 단원을 선택하고, 진로 연계 정보까지 함께 정리해 주세요.</p>
+              <p>이번 학기에 수강하는 과목을 기준으로 교과와 진로를 차례대로 선택해 주세요.</p>
             </div>
           </div>
 
-          <div class="student-writing-split">
-            <div class="student-section-panel">
-              <div class="section-head">
-                <h4>교과 / 단원 입력</h4>
-                <p>ATME 운영과 같은 흐름으로 교과와 단원을 선택하면 입력값이 자동 반영됩니다.</p>
-              </div>
+          <div class="student-section-panel student-selection-shell" data-student-selection-root>
+            <div class="section-head">
+              <h4>교과 / 진로 선택</h4>
+              <p>교과는 단원 순서대로, 진로는 우선순위 순서대로 선택해 주세요.</p>
+            </div>
 
+            <div class="student-selection-fallback" data-student-selection-source>
               <div class="student-curriculum-grid">
                 {% for field in question_schema.flat_fields %}
                   {% if field.id in curriculum_ids %}
@@ -125,34 +125,6 @@
                 {% endfor %}
               </div>
             </div>
-
-            <div class="student-section-panel">
-              <div class="section-head">
-                <h4>선택한 교과 정리</h4>
-                <p>현재 입력된 교과와 단원 조합을 한 번에 확인할 수 있습니다.</p>
-              </div>
-
-              <div class="student-summary-list">
-                {% for index in [1, 2] %}
-                  {% set selected_subject = form_data.answers.get('linked_subject_' ~ index, '') %}
-                  {% set selected_unit = form_data.answers.get('linked_unit_' ~ index, '') %}
-                  <div class="student-summary-row">
-                    <span class="student-summary-index">{{ index }}</span>
-                    <div class="student-summary-body">
-                      <strong>{{ selected_subject or '선택된 교과가 없습니다.' }}</strong>
-                      <p>{{ selected_unit or '단원을 선택하면 이곳에 함께 표시됩니다.' }}</p>
-                    </div>
-                  </div>
-                {% endfor %}
-              </div>
-
-              {% if question_schema.report_reference %}
-                <div class="student-inline-note">
-                  <strong>연계 보고서</strong>
-                  <p>{{ question_schema.report_reference }}</p>
-                </div>
-              {% endif %}
-            </div>
           </div>
         </section>
 
@@ -172,7 +144,7 @@
                 <div class="student-section-panel">
                   <div class="section-head">
                     <h4>핵심 키워드</h4>
-                    <p>탐구를 대표하는 키워드를 추가해 두면 아래 목록에 정리됩니다.</p>
+                    <p>탐구를 대표하는 키워드를 추가하면 오른쪽 목록에 차례대로 정리됩니다.</p>
                   </div>
 
                   <input type="hidden" name="{{ field.id }}" value="{{ form_data.answers.get(field.id, '') }}" data-keyword-value />
@@ -188,7 +160,7 @@
                 <div class="student-section-panel">
                   <div class="section-head">
                     <h4>키워드 목록</h4>
-                    <p>추가한 키워드는 제출 전에 언제든지 다시 정리할 수 있습니다.</p>
+                    <p>추가한 키워드는 제출 전에 이곳에서 다시 정리해 볼 수 있습니다.</p>
                   </div>
                   <div class="student-keyword-list" data-keyword-list></div>
                 </div>
