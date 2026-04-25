@@ -183,7 +183,6 @@
               {% if field.id not in curriculum_ids and field.id not in guidance_ids and field.id != keyword_id %}
                 {% set body_counter.value = body_counter.value + 1 %}
                 <section class="question-block-card student-question-panel">
-                  <span class="student-question-index">{{ body_counter.value }}</span>
                   <div class="section-head">
                     <h4>탐구 내용 {{ body_counter.value }}</h4>
                     <p>{{ field.label }}</p>

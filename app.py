@@ -533,6 +533,11 @@ ADMIN_PANEL_META: dict[str, dict[str, str]] = {
         "page_description": "저장된 유형을 수정하고 사용 현황을 확인하며 운영 중인 유형을 정리합니다.",
         "active_key": "template-manage",
     },
+    "prompt-manage": {
+        "page_title": "프롬프트 관리",
+        "page_description": "강사 생활기록부 생성에 사용하는 GPT 프롬프트를 한 곳에서 관리합니다.",
+        "active_key": "prompt-manage",
+    },
 }
 
 
@@ -546,6 +551,38 @@ def current_admin_panel(request: Request) -> str:
 def admin_panel_path(panel: str = "camp-create") -> str:
     resolved_panel = panel if panel in ADMIN_PANEL_META else "camp-create"
     return f"/admin?panel={resolved_panel}"
+
+
+def get_meta_value(db: sqlite3.Connection, key: str, default: str = "") -> str:
+    row = db.execute("SELECT value FROM app_meta WHERE key = ?", (key,)).fetchone()
+    if not row:
+        return default
+    return str(row["value"] or default)
+
+
+def set_meta_value(db: sqlite3.Connection, key: str, value: str) -> None:
+    db.execute(
+        """
+        INSERT INTO app_meta (key, value) VALUES (?, ?)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """,
+        (key, value),
+    )
+    db.commit()
+
+
+def get_teacher_generation_prompt(
+    db: sqlite3.Connection,
+    program: sqlite3.Row | dict[str, Any] | None = None,
+) -> str:
+    global_prompt = get_meta_value(db, "teacher_generation_prompt", "").strip()
+    if global_prompt:
+        return global_prompt
+    if program is not None:
+        program_prompt = (program.get("prompt_text") if isinstance(program, dict) else program["prompt_text"]) or ""
+        if str(program_prompt).strip():
+            return str(program_prompt).strip()
+    return EVALUATION_EXAMPLE_PROMPT.strip()
 
 
 @lru_cache(maxsize=256)
@@ -1734,6 +1771,7 @@ def build_shell_context(
                 "items": [
                     {"key": "template-create", "label": "유형입력", "href": admin_panel_path("template-create")},
                     {"key": "template-manage", "label": "관리", "href": admin_panel_path("template-manage")},
+                    {"key": "prompt-manage", "label": "프롬프트 관리", "href": admin_panel_path("prompt-manage")},
                 ],
             },
         ]
@@ -2315,7 +2353,11 @@ def extract_response_text(payload: dict[str, Any]) -> str:
     return ""
 
 
-def generate_ai_evaluation_example(program: sqlite3.Row | dict[str, Any], submission: dict[str, Any]) -> tuple[str, str]:
+def generate_ai_evaluation_example(
+    db: sqlite3.Connection,
+    program: sqlite3.Row | dict[str, Any],
+    submission: dict[str, Any],
+) -> tuple[str, str]:
     api_key = openai_api_key()
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY not configured")
@@ -2325,7 +2367,7 @@ def generate_ai_evaluation_example(program: sqlite3.Row | dict[str, Any], submis
     reasoning_effort = os.environ.get("OPENAI_REASONING_EFFORT", "low").strip() or "low"
     text_verbosity = os.environ.get("OPENAI_TEXT_VERBOSITY", "low").strip() or "low"
     max_output_tokens = int(os.environ.get("OPENAI_MAX_OUTPUT_TOKENS", "1600"))
-    prompt_text = (program.get("prompt_text") if isinstance(program, dict) else program["prompt_text"]) or EVALUATION_EXAMPLE_PROMPT
+    prompt_text = get_teacher_generation_prompt(db, program)
     body = {
         "model": model,
         "reasoning": {"effort": reasoning_effort},
@@ -2392,7 +2434,7 @@ def ensure_ai_suggestion_for_submission(
         return submission
 
     try:
-        suggestion, model = generate_ai_evaluation_example(program, submission)
+        suggestion, model = generate_ai_evaluation_example(db, program, submission)
     except Exception as exc:
         submission["ai_error"] = str(exc)
         return submission
@@ -2917,6 +2959,7 @@ def admin_dashboard(request: Request) -> Response:
         school_levels=SCHOOL_LEVEL_OPTIONS,
         semesters=SEMESTER_OPTIONS,
         default_prompt_text=EVALUATION_EXAMPLE_PROMPT.strip(),
+        teacher_generation_prompt=get_teacher_generation_prompt(request.db),
     )
 
 
@@ -3186,6 +3229,17 @@ def admin_delete_template(request: Request, template_id: str) -> Response:
     request.db.commit()
     set_flash(request.db, request.session["id"], f"{template['name']} 유형이 삭제되었습니다.", "success")
     return redirect_response(admin_panel_path("template-manage"))
+
+
+@route("POST", r"/admin/prompts")
+def admin_update_teacher_prompt(request: Request) -> Response:
+    auth = require_role(request, "admin")
+    if auth:
+        return auth
+    prompt_text = request.form.get("teacher_generation_prompt", "").strip() or EVALUATION_EXAMPLE_PROMPT.strip()
+    set_meta_value(request.db, "teacher_generation_prompt", prompt_text)
+    set_flash(request.db, request.session["id"], "강사 생활기록부 생성 프롬프트가 저장되었습니다.", "success")
+    return redirect_response(admin_panel_path("prompt-manage"))
 
 
 @route("POST", r"/admin/programs")

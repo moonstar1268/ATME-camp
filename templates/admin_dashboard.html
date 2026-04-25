@@ -586,6 +586,67 @@
         </div>
       </div>
     </section>
+  {% elif panel == "prompt-manage" %}
+    <section class="page-section admin-panel-page">
+      <div class="admin-panel-stack">
+        <div class="admin-surface-card admin-list-shell">
+          <div class="admin-surface-badge">프롬프트 리스트</div>
+          <div class="data-table-card compact-top" data-table-root data-page-size="10">
+            <div class="table-wrap">
+              <table class="app-table">
+                <thead>
+                  <tr>
+                    <th>프롬프트명</th>
+                    <th>적용 범위</th>
+                    <th>설명</th>
+                    <th>관리</th>
+                  </tr>
+                </thead>
+                <tbody data-table-body>
+                  <tr>
+                    <td>강사 생활기록부 생성 프롬프트</td>
+                    <td>전체 강사 / 전체 프로그램</td>
+                    <td>강사가 학생 면담지 검토 화면에서 GPT 평가 예시를 생성할 때 사용하는 공통 프롬프트입니다.</td>
+                    <td><a href="#teacher-generation-prompt-editor" class="secondary-button compact-button">수정</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-surface-card">
+          <div class="admin-surface-badge">프롬프트 편집</div>
+          <form id="teacher-generation-prompt-editor" action="/admin/prompts" method="post" class="stack-form admin-wire-form">
+            <div class="admin-wire-grid">
+              <div class="admin-wire-row">
+                <div class="admin-wire-label">적용 대상</div>
+                <div class="admin-wire-controls">
+                  <div class="admin-wire-note">
+                    <strong>강사 생활기록부 생성 프롬프트</strong>
+                    <p>이 탭에서 저장한 문구는 강사가 개별 면담지 검토 화면에서 GPT 예시를 새로 생성할 때 바로 반영됩니다.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="admin-wire-row">
+                <div class="admin-wire-label">프롬프트</div>
+                <div class="admin-wire-controls">
+                  <label class="form-field admin-wire-field">
+                    <span>강사 공통 프롬프트</span>
+                    <textarea name="teacher_generation_prompt" rows="18">{{ teacher_generation_prompt }}</textarea>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="page-actions align-right admin-wire-actions">
+              <button type="submit" class="primary-button admin">프롬프트 저장</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
   {% endif %}
 
   <div class="modal-backdrop" data-template-lock-modal hidden>
