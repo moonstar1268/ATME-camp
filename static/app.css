@@ -124,6 +124,16 @@ code {
   color: rgba(248, 250, 252, 0.65);
 }
 
+.app-sidebar .sidebar-group-label {
+  color: #ffffff;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.1;
+  text-transform: none;
+  margin-bottom: 6px;
+}
+
 .sidebar-role-chip {
   align-self: flex-start;
   padding: 10px 16px;
@@ -1104,6 +1114,7 @@ button:disabled {
 
 .student-stage-frame {
   position: relative;
+  isolation: isolate;
   margin-top: 18px;
   padding: 34px 24px 24px;
   border: 1px solid var(--border-strong);
@@ -1121,12 +1132,13 @@ button:disabled {
   min-height: 40px;
   padding: 0 18px;
   border-radius: 14px;
-  background: rgba(37, 99, 235, 0.12);
-  border: 1px solid rgba(37, 99, 235, 0.18);
+  background: #e7f0ff;
+  border: 1px solid #c7d8ff;
   color: var(--teacher);
   font-size: 1rem;
   font-weight: 800;
-  box-shadow: var(--shadow-sm);
+  z-index: 3;
+  box-shadow: 0 0 0 8px #ffffff, var(--shadow-sm);
 }
 
 .student-stage-display-grid {
@@ -1353,10 +1365,13 @@ button:disabled {
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: rgba(31, 111, 214, 0.14);
+  background: #e7f0ff;
   color: var(--primary-strong);
   font-size: 1rem;
   font-weight: 800;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 0 0 6px #ffffff;
 }
 
 .student-summary-body,

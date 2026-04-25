@@ -16,10 +16,27 @@
       <div class="admin-panel-stack">
         <div class="admin-surface-card">
         <div class="admin-surface-badge">캠프 개설</div>
-        <form action="/admin/programs" method="post" class="stack-form admin-wire-form">
-          <input type="hidden" name="school_name" value="-" />
-          <input type="hidden" name="school_level" value="-" />
+        <form action="/admin/programs" method="post" class="stack-form admin-wire-form" data-simple-school-input="true">
           <div class="admin-wire-grid">
+            <div class="admin-wire-row">
+              <div class="admin-wire-label">교급 / 학교명</div>
+              <div class="admin-wire-controls admin-wire-controls-split">
+                <label class="form-field admin-wire-field">
+                  <span>교급</span>
+                  <select name="school_level" required>
+                    <option value="">선택</option>
+                    {% for level in school_levels %}
+                      <option value="{{ level }}">{{ level }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+                <label class="form-field admin-wire-field">
+                  <span>학교명</span>
+                  <input type="text" name="school_name" placeholder="예: 충주대원고등학교" required />
+                </label>
+              </div>
+            </div>
+
             <div class="admin-wire-row">
               <div class="admin-wire-label">학년도 / 학기</div>
               <div class="admin-wire-controls admin-wire-controls-split">

@@ -613,7 +613,7 @@ function createSelect(className = "") {
 
 function initAdminSchoolSelector() {
   const form = document.querySelector("form[action='/admin/programs']");
-  if (!form) {
+  if (!form || form.dataset.simpleSchoolInput === "true") {
     return;
   }
 
@@ -1101,8 +1101,6 @@ function initStudentCurriculumSelectors() {
 
   const careerTitle = document.createElement("h5");
   careerTitle.textContent = "진로 선택";
-  const careerDescription = document.createElement("p");
-  careerDescription.textContent = "세탐.com과 같은 방식으로 희망 진로 우선순위를 선택해 주세요.";
 
   const careerGrid = document.createElement("div");
   careerGrid.className = "student-career-grid";
@@ -1120,7 +1118,6 @@ function initStudentCurriculumSelectors() {
   majorSummary.className = "student-career-major-list";
 
   careerPanel.appendChild(careerTitle);
-  careerPanel.appendChild(careerDescription);
   careerPanel.appendChild(careerGrid);
   careerPanel.appendChild(careerSummary);
   careerPanel.appendChild(majorSummary);
