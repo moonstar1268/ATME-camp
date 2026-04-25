@@ -837,6 +837,7 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
                 ai_suggestion TEXT DEFAULT '',
                 ai_generated_at TEXT,
                 ai_model TEXT DEFAULT '',
+                ai_regeneration_count INTEGER NOT NULL DEFAULT 0,
                 admin_feedback TEXT DEFAULT '',
                 admin_updated_at TEXT,
                 UNIQUE (program_id, student_number),
@@ -1025,6 +1026,8 @@ def ensure_submission_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_generated_at TEXT")
     if "ai_model" not in columns:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_model TEXT DEFAULT ''")
+    if "ai_regeneration_count" not in columns:
+        db.execute("ALTER TABLE submissions ADD COLUMN ai_regeneration_count INTEGER NOT NULL DEFAULT 0")
     db.commit()
 
 
@@ -3596,6 +3599,7 @@ def teacher_submission_detail(request: Request, program_id: str, submission_id: 
     submission = next((item for item in submissions if item["id"] == int(submission_id)), None)
     if not submission:
         return text_response("학생 제출 정보를 찾을 수 없습니다.", status="404 Not Found")
+    ai_regeneration_count = int(submission.get("ai_regeneration_count") or 0)
     return render_template(
         request,
         "teacher_submission_detail.html",
@@ -3604,6 +3608,8 @@ def teacher_submission_detail(request: Request, program_id: str, submission_id: 
         submission=submission,
         is_locked=program["status"] in {"teacher_submitted", "completed"},
         ai_enabled=openai_is_configured(),
+        can_regenerate_ai=ai_regeneration_count < 1,
+        ai_regeneration_count=ai_regeneration_count,
         shell_overrides={
             "nav_groups": build_teacher_nav_groups(int(program_id)),
             "active_key": "teacher-reviews",
@@ -3637,11 +3643,22 @@ def teacher_regenerate_ai_suggestion(request: Request, program_id: str, submissi
         set_flash(request.db, request.session["id"], "학생 제출 정보를 찾을 수 없습니다.", "error")
         return redirect_response(f"/teacher/programs/{program_id}/reviews")
 
+    if int(target.get("ai_regeneration_count") or 0) >= 1:
+        set_flash(request.db, request.session["id"], "AI 예시 다시 생성은 개별 면담지당 1번만 가능합니다.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
+
     ensure_ai_suggestion_for_submission(request.db, program, target, force=True)
     if target.get("ai_error"):
         set_flash(request.db, request.session["id"], f"평가 내용 예시 생성에 실패했습니다. {target['ai_error']}", "error")
     else:
         set_flash(request.db, request.session["id"], "평가 내용 예시를 다시 생성했습니다.", "success")
+    if not target.get("ai_error"):
+        request.db.execute(
+            "UPDATE submissions SET ai_regeneration_count = 1 WHERE id = ? AND program_id = ?",
+            (submission_id, program_id),
+        )
+        request.db.commit()
+        target["ai_regeneration_count"] = 1
     return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
 
@@ -3899,7 +3916,7 @@ def student_submit(request: Request) -> Response:
             SET student_name = ?, desired_major = ?, answers_json = ?,
                 status = 'student_submitted', student_submitted_at = ?,
                 teacher_summary = '', teacher_evaluation = '', teacher_updated_at = NULL,
-                ai_suggestion = '', ai_generated_at = NULL, ai_model = '',
+                ai_suggestion = '', ai_generated_at = NULL, ai_model = '', ai_regeneration_count = 0,
                 admin_feedback = '', admin_updated_at = NULL
             WHERE id = ?
             """,

@@ -81,7 +81,7 @@
           <div class="row-actions">
             {% if not is_locked %}
               <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}/ai-suggestion" method="post" class="inline-action-form">
-                <button type="submit" class="secondary-button compact-button">
+                <button type="submit" class="secondary-button compact-button" {% if not can_regenerate_ai %}disabled{% endif %}>
                   {% if submission.ai_suggestion %}예시 다시 생성{% else %}평가 예시 생성{% endif %}
                 </button>
               </form>
@@ -98,6 +98,10 @@
             {% endif %}
           </div>
         </div>
+
+        {% if not can_regenerate_ai %}
+          <p class="form-hint compact-top">AI 예시 다시 생성은 개별 면담지당 1회만 가능합니다. 이전 생성 기록은 그대로 유지됩니다.</p>
+        {% endif %}
 
         {% if submission.ai_suggestion %}
           <div id="ai-suggestion-{{ submission.id }}" class="prewrap-text ai-suggestion-body">{{ submission.ai_suggestion }}</div>
