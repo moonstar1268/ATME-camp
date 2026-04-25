@@ -59,17 +59,21 @@
               <span class="student-stage-display-label">학번</span>
               <strong>{{ student_number }}</strong>
             </article>
-            <article class="student-stage-display-card">
+            <article class="student-stage-display-card student-stage-display-card-double">
               <span class="student-stage-display-label">희망 전공</span>
               <strong>{{ form_data.desired_major }}</strong>
             </article>
-          </div>
-
-          <div class="student-identity-inline student-identity-inline-spaced">
-            <a href="/student/start?change=1" class="ghost-link">이름·학번 다시 입력</a>
-            {% if has_saved_draft and draft_updated_at %}
-              <p class="student-form-status">마지막 임시저장 시각: {{ format_datetime(draft_updated_at) }}</p>
-            {% endif %}
+            <article class="student-stage-display-card student-stage-action-card">
+              <span class="student-stage-display-label">작성 정보</span>
+              <div class="student-stage-action-stack">
+                <a href="/student/start?change=1" class="ghost-link">이름·학번 다시 입력</a>
+                {% if has_saved_draft and draft_updated_at %}
+                  <p class="student-form-status">마지막 임시저장 시각: {{ format_datetime(draft_updated_at) }}</p>
+                {% else %}
+                  <p class="student-form-status">입력 정보를 바꾸려면 이 버튼을 눌러 다시 시작해 주세요.</p>
+                {% endif %}
+              </div>
+            </article>
           </div>
         </section>
 

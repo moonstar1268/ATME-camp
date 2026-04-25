@@ -1543,6 +1543,7 @@ def clear_session_cookie_header() -> tuple[str, str]:
 
 
 def render_template(request: Request, template_name: str, **context: Any) -> Response:
+    shell_overrides = context.pop("shell_overrides", None)
     template = env.get_template(template_name)
     base_context = {
         "request": request,
@@ -1551,7 +1552,7 @@ def render_template(request: Request, template_name: str, **context: Any) -> Res
         "submission_status_labels": SUBMISSION_STATUS_LABELS,
         "status_label": status_label,
         "format_datetime": format_datetime,
-        "shell": build_shell_context(request, template_name),
+        "shell": build_shell_context(request, template_name, shell_overrides=shell_overrides),
     }
     html = template.render(**base_context, **context)
     return html_response(html)
@@ -1583,7 +1584,26 @@ def get_current_teacher(request: Request) -> sqlite3.Row | None:
     ).fetchone()
 
 
-def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
+def build_teacher_nav_groups(program_id: int | None = None) -> list[dict[str, Any]]:
+    program_status_href = f"/teacher/programs/{program_id}" if program_id else "/teacher"
+    review_list_href = f"/teacher/programs/{program_id}/reviews" if program_id else "/teacher"
+    return [
+        {
+            "label": "강사",
+            "items": [
+                {"key": "teacher-dashboard", "label": "프로그램 리스트", "href": "/teacher"},
+                {"key": "teacher-programs", "label": "학생 면담지 제출현황", "href": program_status_href},
+                {"key": "teacher-reviews", "label": "개별 면담지 검토", "href": review_list_href},
+            ],
+        }
+    ]
+
+
+def build_shell_context(
+    request: Request,
+    template_name: str,
+    shell_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     template_meta = {
         "landing.html": {
             "authenticated": False,
@@ -1617,9 +1637,21 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
         },
         "teacher_program_detail.html": {
             "authenticated": True,
-            "page_title": "강사 프로그램 검토",
-            "page_description": "학생 제출 내용을 검토하고 평가를 작성합니다.",
+            "page_title": "학생 면담지 제출현황",
+            "page_description": "프로그램 요약과 학생 제출 현황을 한 화면에서 확인합니다.",
             "active_key": "teacher-programs",
+        },
+        "teacher_submission_list.html": {
+            "authenticated": True,
+            "page_title": "개별 면담지 리스트",
+            "page_description": "학생별 제출 상태를 표로 확인하고 개별 면담지 검토 화면으로 이동합니다.",
+            "active_key": "teacher-reviews",
+        },
+        "teacher_submission_detail.html": {
+            "authenticated": True,
+            "page_title": "개별 면담지 검토",
+            "page_description": "학생 1명의 제출 내용을 검토하고 AI 예시를 바탕으로 평가를 작성합니다.",
+            "active_key": "teacher-reviews",
         },
         "student_start.html": {
             "authenticated": True,
@@ -1652,6 +1684,11 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
         template_meta = {
             **template_meta,
             **ADMIN_PANEL_META[current_admin_panel(request)],
+        }
+    if shell_overrides:
+        template_meta = {
+            **template_meta,
+            **{key: value for key, value in shell_overrides.items() if key in {"page_title", "page_description", "active_key"}},
         }
 
     role = request.session["role"] if request.session else ""
@@ -1701,15 +1738,7 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
             },
         ]
     elif role == "teacher":
-        nav_groups = [
-            {
-                "label": "강사",
-                "items": [
-                    {"key": "teacher-dashboard", "label": "프로그램 리스트", "href": "/teacher"},
-                    {"key": "teacher-programs", "label": "학생 면담지 검토", "href": "/teacher"},
-                ],
-            }
-        ]
+        nav_groups = build_teacher_nav_groups()
     elif role == "student":
         nav_groups = [
             {
@@ -1723,6 +1752,8 @@ def build_shell_context(request: Request, template_name: str) -> dict[str, Any]:
         ]
 
     active_key = template_meta["active_key"]
+    if shell_overrides and shell_overrides.get("nav_groups"):
+        nav_groups = shell_overrides["nav_groups"]
     for group in nav_groups:
         for item in group["items"]:
             item["is_active"] = item["key"] == active_key
@@ -1912,6 +1943,134 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
         item["final_evaluation"] = final_evaluation(row)
         submissions.append(item)
     return submissions
+
+
+def get_answer_map_from_entries(entries: Any) -> dict[str, str]:
+    if isinstance(entries, dict):
+        return {
+            str(key): str(value).strip()
+            for key, value in entries.items()
+            if str(value).strip()
+        }
+    answer_map: dict[str, str] = {}
+    if isinstance(entries, list):
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            field_id = str(entry.get("field_id") or "").strip()
+            answer = str(entry.get("answer") or "").strip()
+            if field_id and answer:
+                answer_map[field_id] = answer
+    return answer_map
+
+
+def summarize_short_text(value: str, limit: int = 44) -> str:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return "-"
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 1].rstrip()}…"
+
+
+def get_review_status_label(status: str) -> str:
+    return {
+        "draft": "학생 입력 진행 중",
+        "student_submitted": "학생 제출 완료",
+        "reviewed": "강사 검토 완료",
+        "admin_updated": "강사 검토 완료",
+    }.get(status, "학생 입력 진행 중")
+
+
+def build_submission_review_meta(
+    *,
+    student_name: str,
+    student_number: str,
+    desired_major: str,
+    status: str,
+    answers: Any,
+    updated_at: str = "",
+    submission_id: int | None = None,
+) -> dict[str, Any]:
+    answer_map = get_answer_map_from_entries(answers)
+    topic = (
+        answer_map.get("interest_focus")
+        or answer_map.get("curriculum_connection")
+        or answer_map.get("highlight_point")
+        or answer_map.get("keywords")
+        or ""
+    )
+    career = (
+        answer_map.get("career_goal")
+        or answer_map.get("career_major")
+        or desired_major
+        or ""
+    )
+    return {
+        "submission_id": submission_id,
+        "student_name": student_name,
+        "student_number": student_number,
+        "topic": summarize_short_text(topic),
+        "career": summarize_short_text(career),
+        "status": status,
+        "status_label": get_review_status_label(status),
+        "updated_at": updated_at,
+    }
+
+
+def get_program_review_rows(db: sqlite3.Connection, program_id: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    existing_keys: set[tuple[str, str]] = set()
+
+    for submission in get_submissions_for_program(db, program_id):
+        key = (str(submission.get("student_number") or "").strip(), str(submission.get("student_name") or "").strip())
+        if key != ("", ""):
+            existing_keys.add(key)
+        rows.append(
+            build_submission_review_meta(
+                student_name=submission.get("student_name", ""),
+                student_number=submission.get("student_number", ""),
+                desired_major=submission.get("desired_major", ""),
+                status=submission.get("status", "student_submitted"),
+                answers=submission.get("answers", []),
+                updated_at=submission.get("teacher_updated_at") or submission.get("student_submitted_at") or "",
+                submission_id=int(submission["id"]),
+            )
+        )
+
+    draft_rows = db.execute(
+        """
+        SELECT *
+        FROM student_drafts
+        WHERE program_id = ?
+        ORDER BY updated_at DESC, student_number ASC, student_name ASC
+        """,
+        (program_id,),
+    ).fetchall()
+    for draft in draft_rows:
+        key = (str(draft["student_number"] or "").strip(), str(draft["student_name"] or "").strip())
+        if key in existing_keys:
+            continue
+        rows.append(
+            build_submission_review_meta(
+                student_name=draft["student_name"],
+                student_number=draft["student_number"],
+                desired_major=draft["desired_major"] or "",
+                status="draft",
+                answers=parse_json(draft["answers_json"], {}),
+                updated_at=draft["updated_at"] or draft["created_at"] or "",
+                submission_id=None,
+            )
+        )
+
+    rows.sort(
+        key=lambda item: (
+            item["status"] == "draft",
+            item["student_number"] or "999999",
+            item["student_name"],
+        )
+    )
+    return rows
 
 
 def get_student_name_from_session(request: Request) -> str:
@@ -2634,6 +2793,11 @@ def admin_login_page(request: Request) -> Response:
     return redirect_response(destination)
 
 
+@route("GET", r"/login/admin")
+def legacy_admin_login_page(request: Request) -> Response:
+    return redirect_response("/admin/login")
+
+
 @route("POST", r"/login/admin")
 def login_admin(request: Request) -> Response:
     username = request.form.get("username", "").strip()
@@ -3307,6 +3471,10 @@ def teacher_dashboard(request: Request) -> Response:
         metrics=metrics,
         spotlight_program=spotlight_program,
         recent_submission=recent_submission,
+        shell_overrides={
+            "nav_groups": build_teacher_nav_groups(int(spotlight_program["id"])) if spotlight_program else build_teacher_nav_groups(),
+            "active_key": "teacher-dashboard",
+        },
     )
 
 
@@ -3321,18 +3489,71 @@ def teacher_program_detail(request: Request, program_id: str) -> Response:
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
-    submissions = get_submissions_for_program(request.db, int(program_id))
-    question_schema = get_program_form_schema(program)
     return render_template(
         request,
         "teacher_program_detail.html",
         teacher=teacher,
         program=program,
-        questions=get_program_questions(program),
-        question_schema=question_schema,
-        submissions=submissions,
+        review_rows=get_program_review_rows(request.db, int(program_id)),
+        is_locked=program["status"] in {"teacher_submitted", "completed"},
+        shell_overrides={
+            "nav_groups": build_teacher_nav_groups(int(program_id)),
+            "active_key": "teacher-programs",
+        },
+    )
+
+
+@route("GET", r"/teacher/programs/(?P<program_id>\d+)/reviews")
+def teacher_submission_list(request: Request, program_id: str) -> Response:
+    auth = require_role(request, "teacher")
+    if auth:
+        return auth
+    teacher = get_current_teacher(request)
+    if not teacher:
+        return redirect_response("/logout")
+    program = get_program_with_teacher(request.db, int(program_id))
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
+        return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    return render_template(
+        request,
+        "teacher_submission_list.html",
+        teacher=teacher,
+        program=program,
+        review_rows=get_program_review_rows(request.db, int(program_id)),
+        shell_overrides={
+            "nav_groups": build_teacher_nav_groups(int(program_id)),
+            "active_key": "teacher-reviews",
+        },
+    )
+
+
+@route("GET", r"/teacher/programs/(?P<program_id>\d+)/reviews/(?P<submission_id>\d+)")
+def teacher_submission_detail(request: Request, program_id: str, submission_id: str) -> Response:
+    auth = require_role(request, "teacher")
+    if auth:
+        return auth
+    teacher = get_current_teacher(request)
+    if not teacher:
+        return redirect_response("/logout")
+    program = get_program_with_teacher(request.db, int(program_id))
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
+        return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    submissions = get_submissions_for_program(request.db, int(program_id))
+    submission = next((item for item in submissions if item["id"] == int(submission_id)), None)
+    if not submission:
+        return text_response("학생 제출 정보를 찾을 수 없습니다.", status="404 Not Found")
+    return render_template(
+        request,
+        "teacher_submission_detail.html",
+        teacher=teacher,
+        program=program,
+        submission=submission,
         is_locked=program["status"] in {"teacher_submitted", "completed"},
         ai_enabled=openai_is_configured(),
+        shell_overrides={
+            "nav_groups": build_teacher_nav_groups(int(program_id)),
+            "active_key": "teacher-reviews",
+        },
     )
 
 
@@ -3354,20 +3575,20 @@ def teacher_regenerate_ai_suggestion(request: Request, program_id: str, submissi
     ).fetchone()
     if not row:
         set_flash(request.db, request.session["id"], "학생 제출 정보를 찾을 수 없습니다.", "error")
-        return redirect_response(f"/teacher/programs/{program_id}")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews")
 
     normalized_submission = get_submissions_for_program(request.db, int(program_id))
     target = next((item for item in normalized_submission if item["id"] == int(submission_id)), None)
     if not target:
         set_flash(request.db, request.session["id"], "학생 제출 정보를 찾을 수 없습니다.", "error")
-        return redirect_response(f"/teacher/programs/{program_id}")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews")
 
     ensure_ai_suggestion_for_submission(request.db, program, target, force=True)
     if target.get("ai_error"):
         set_flash(request.db, request.session["id"], f"평가 내용 예시 생성에 실패했습니다. {target['ai_error']}", "error")
     else:
         set_flash(request.db, request.session["id"], "평가 내용 예시를 다시 생성했습니다.", "success")
-    return redirect_response(f"/teacher/programs/{program_id}")
+    return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
 
 @route("POST", r"/teacher/programs/(?P<program_id>\d+)/submissions/(?P<submission_id>\d+)")
@@ -3383,7 +3604,7 @@ def teacher_update_submission(request: Request, program_id: str, submission_id: 
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     if program["status"] in {"teacher_submitted", "completed"}:
         set_flash(request.db, request.session["id"], "이미 제출이 완료된 프로그램은 수정할 수 없습니다.", "error")
-        return redirect_response(f"/teacher/programs/{program_id}")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
     teacher_summary = request.form.get("teacher_summary", "").strip()
     teacher_evaluation = request.form.get("teacher_evaluation", "").strip()
@@ -3397,7 +3618,7 @@ def teacher_update_submission(request: Request, program_id: str, submission_id: 
     )
     request.db.commit()
     set_flash(request.db, request.session["id"], "학생 평가 내용이 저장되었습니다.", "success")
-    return redirect_response(f"/teacher/programs/{program_id}")
+    return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
 
 @route("POST", r"/teacher/programs/(?P<program_id>\d+)/submit")

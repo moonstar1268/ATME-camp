@@ -1,10 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}강사 프로그램 검토 | AFE{% endblock %}
+{% block title %}학생 면담지 제출현황 | AFE{% endblock %}
 
 {% block workspace_actions %}
   <div class="badge-row">
     <span class="status-badge">프로그램 코드 {{ program.program_code }}</span>
+    <a href="/teacher/programs/{{ program.id }}/reviews" class="secondary-button compact-button">개별 검토</a>
     <a href="/teacher" class="secondary-button compact-button">목록으로</a>
   </div>
 {% endblock %}
@@ -15,202 +16,104 @@
   {% endif %}
 
   <section class="page-grid two-column">
-    <div class="stack-layout">
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <p class="section-kicker">PROGRAM SUMMARY</p>
-            <h2>{{ program.title }}</h2>
-            <p class="card-description">{{ program.school_name }} / {{ program.school_level }} / {{ program.year }} {{ program.semester }}</p>
-          </div>
-          {% if not is_locked %}
-            <form action="/teacher/programs/{{ program.id }}/submit" method="post">
-              <button type="submit" class="primary-button teacher">강사 최종 제출</button>
-            </form>
-          {% endif %}
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <p class="section-kicker">PROGRAM SUMMARY</p>
+          <h2>{{ program.title }}</h2>
+          <p class="card-description">{{ program.school_name }} / {{ program.school_level }} / {{ program.year }} {{ program.semester }}</p>
         </div>
-
-        <div class="info-grid">
-          <div class="info-item"><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
-          <div class="info-item"><span>상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
-          <div class="info-item"><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
-          <div class="info-item"><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
-        </div>
-
-        {% if program.assigned_teachers %}
-          <section class="subsection-card compact-top">
-            <div class="section-head">
-              <h3>배정 강사</h3>
-              <p>같은 캠프를 담당하는 강사 목록입니다.</p>
-            </div>
-            <div class="chip-grid">
-              {% for assigned_teacher in program.assigned_teachers %}
-                <div class="chip-card {% if assigned_teacher.id == teacher.id %}is-active{% endif %}">
-                  <strong>{{ assigned_teacher.name }}</strong>
-                  <span>{{ assigned_teacher.username }}</span>
-                  <code>{{ assigned_teacher.access_code }}</code>
-                </div>
-              {% endfor %}
-            </div>
-          </section>
+        {% if not is_locked %}
+          <form action="/teacher/programs/{{ program.id }}/submit" method="post">
+            <button type="submit" class="primary-button teacher">강사 최종 제출</button>
+          </form>
         {% endif %}
+      </div>
 
-        {% if question_schema.report_reference %}
-          <section class="subsection-card compact-top">
-            <div class="section-head">
-              <h3>질문지 양식</h3>
-              <p>프로그램과 연결된 질문지/보고서 정보입니다.</p>
-            </div>
-            <div class="info-item is-stacked">
-              <span>연계 보고서</span>
-              <strong>{{ question_schema.report_reference }}</strong>
-            </div>
-            {% if question_schema.report_summary %}
-              <p class="card-description compact-top">{{ question_schema.report_summary }}</p>
-            {% endif %}
-          </section>
-        {% endif %}
-      </section>
+      <div class="info-grid compact-top">
+        <div class="info-item"><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
+        <div class="info-item"><span>현재 상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
+        <div class="info-item"><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
+        <div class="info-item"><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
+      </div>
 
-      <section class="card">
-        <div class="card-header">
-          <div>
-            <p class="section-kicker">SUBMISSION LIST</p>
-            <h2>학생 제출 현황</h2>
+      {% if program.assigned_teachers %}
+        <section class="subsection-card compact-top">
+          <div class="section-head">
+            <h3>배정 강사</h3>
+            <p>같은 캠프를 담당하는 강사 목록입니다.</p>
           </div>
-        </div>
-
-        <div class="data-table-card" data-table-root data-page-size="8">
-          <div class="data-table-toolbar">
-            <input type="search" class="data-table-search" placeholder="학생명 / 학번 / 전공 검색" data-table-search />
-            <div class="data-table-meta" data-table-status></div>
-          </div>
-          <div class="table-wrap">
-            <table class="app-table">
-              <thead>
-                <tr>
-                  <th>학번</th>
-                  <th>학생명</th>
-                  <th>희망전공</th>
-                  <th>학생 제출 시각</th>
-                  <th>상태</th>
-                </tr>
-              </thead>
-              <tbody data-table-body>
-                {% for submission in submissions %}
-                  <tr>
-                    <td>{{ submission.student_number }}</td>
-                    <td>{{ submission.student_name }}</td>
-                    <td>{{ submission.desired_major }}</td>
-                    <td>{{ format_datetime(submission.student_submitted_at) }}</td>
-                    <td><span class="status-badge">{{ status_label(submission.status, "submission") }}</span></td>
-                  </tr>
-                {% else %}
-                  <tr data-empty-row>
-                    <td colspan="5">아직 학생 제출이 없습니다.</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <div class="data-table-footer">
-            <div class="pagination-info" data-table-page></div>
-            <div class="pagination-actions">
-              <button type="button" class="secondary-button compact-button" data-table-prev>이전</button>
-              <button type="button" class="secondary-button compact-button" data-table-next>다음</button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <div class="stack-layout">
-      {% for submission in submissions %}
-        <article class="card submission-card">
-          <div class="card-header">
-            <div>
-              <p class="section-kicker">STUDENT REVIEW</p>
-              <h2>{{ submission.student_name }} ({{ submission.student_number }})</h2>
-              <p class="card-description">희망전공: {{ submission.desired_major }} · 학생 제출: {{ format_datetime(submission.student_submitted_at) }}</p>
-            </div>
-          </div>
-
-          <div class="answer-grid">
-            {% for answer in submission.answers %}
-              <div class="answer-card">
-                {% if answer.section_title %}
-                  <small class="answer-section-label">{{ answer.section_title }}</small>
-                {% endif %}
-                <strong>{{ answer.question }}</strong>
-                <p>{{ answer.answer }}</p>
+          <div class="chip-grid">
+            {% for assigned_teacher in program.assigned_teachers %}
+              <div class="chip-card {% if assigned_teacher.id == teacher.id %}is-active{% endif %}">
+                <strong>{{ assigned_teacher.name }}</strong>
+                <span>{{ assigned_teacher.username }}</span>
+                <code>{{ assigned_teacher.access_code }}</code>
               </div>
             {% endfor %}
           </div>
+        </section>
+      {% endif %}
+    </section>
 
-          <section class="subsection-card compact-top ai-suggestion-card">
-            <div class="card-header compact-header">
-              <div>
-                <p class="section-kicker">AI SUGGESTION</p>
-                <h3>평가 내용 예시</h3>
-                <p class="card-description">학생 작성 내용을 기반으로 GPT 프롬프트를 거친 초안을 참고용으로 제안합니다.</p>
-              </div>
-              <div class="row-actions">
-                {% if not is_locked %}
-                  <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}/ai-suggestion" method="post" class="inline-action-form">
-                    <button type="submit" class="secondary-button compact-button">
-                      {% if submission.ai_suggestion %}예시 다시 생성{% else %}평가 예시 생성{% endif %}
-                    </button>
-                  </form>
-                {% endif %}
-                {% if submission.ai_suggestion %}
-                  <button
-                    type="button"
-                    class="secondary-button compact-button"
-                    data-copy-source="ai-suggestion-{{ submission.id }}"
-                    data-copy-target="teacher-evaluation-{{ submission.id }}"
-                  >
-                    평가 내용에 넣기
-                  </button>
-                {% endif %}
-              </div>
-            </div>
-
-            {% if submission.ai_suggestion %}
-              <div id="ai-suggestion-{{ submission.id }}" class="prewrap-text ai-suggestion-body">{{ submission.ai_suggestion }}</div>
-            {% elif submission.ai_error %}
-              <div class="flash flash-error compact-top">{{ submission.ai_error }}</div>
-            {% elif not ai_enabled %}
-              <div class="flash flash-info compact-top">OPENAI_API_KEY가 설정되지 않아 평가 예시를 생성할 수 없습니다.</div>
-            {% else %}
-              <div class="empty-state compact-empty"><p>아직 생성된 평가 예시가 없습니다.</p></div>
-            {% endif %}
-          </section>
-
-          <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form compact-top">
-            <div class="form-grid">
-              <label class="form-field field-span-2">
-                <span>강사 수정 요약</span>
-                <textarea name="teacher_summary" rows="4" placeholder="면담 내용을 요약해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_summary }}</textarea>
-              </label>
-              <label class="form-field field-span-2">
-                <span>평가 내용</span>
-                <textarea id="teacher-evaluation-{{ submission.id }}" name="teacher_evaluation" rows="8" placeholder="최종 평가 내용을 입력해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_evaluation }}</textarea>
-              </label>
-            </div>
-
-            {% if not is_locked %}
-              <div class="page-actions align-right">
-                <button type="submit" class="primary-button teacher">학생 평가 저장</button>
-              </div>
-            {% endif %}
-          </form>
-        </article>
-      {% else %}
-        <div class="card empty-state">
-          <h3>아직 학생 제출이 없습니다.</h3>
-          <p>학생이 프로그램 코드로 질문지를 제출하면 이 화면에서 바로 검토할 수 있습니다.</p>
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <p class="section-kicker">SUBMISSION LIST</p>
+          <h2>학생 면담지 제출현황</h2>
+          <p class="card-description">학생별 작성 상태를 먼저 확인하고, 필요한 경우 개별 검토 탭으로 이동해 주세요.</p>
         </div>
-      {% endfor %}
-    </div>
+      </div>
+
+      <div class="data-table-card compact-top" data-table-root data-page-size="10">
+        <div class="data-table-toolbar">
+          <input type="search" class="data-table-search" placeholder="학생명 / 학번 / 탐구주제 검색" data-table-search />
+          <div class="data-table-meta" data-table-status></div>
+        </div>
+        <div class="table-wrap">
+          <table class="app-table">
+            <thead>
+              <tr>
+                <th>학생이름</th>
+                <th>학번</th>
+                <th>탐구주제</th>
+                <th>희망진로</th>
+                <th>상태</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody data-table-body>
+              {% for row in review_rows %}
+                <tr>
+                  <td>{{ row.student_name or "-" }}</td>
+                  <td>{{ row.student_number or "-" }}</td>
+                  <td>{{ row.topic }}</td>
+                  <td>{{ row.career }}</td>
+                  <td><span class="status-badge">{{ row.status_label }}</span></td>
+                  <td>
+                    {% if row.submission_id %}
+                      <a href="/teacher/programs/{{ program.id }}/reviews/{{ row.submission_id }}" class="ghost-link">면담지 확인</a>
+                    {% else %}
+                      <span class="table-muted-action">작성 중</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr data-empty-row>
+                  <td colspan="6">아직 확인할 학생 작성 내용이 없습니다.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="data-table-footer">
+          <div class="pagination-info" data-table-page></div>
+          <div class="pagination-actions">
+            <button type="button" class="secondary-button compact-button" data-table-prev>이전</button>
+            <button type="button" class="secondary-button compact-button" data-table-next>다음</button>
+          </div>
+        </div>
+      </div>
+    </section>
   </section>
 {% endblock %}

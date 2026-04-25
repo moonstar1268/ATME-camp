@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}개별 면담지 리스트 | AFE{% endblock %}
+
+{% block workspace_actions %}
+  <div class="badge-row">
+    <span class="status-badge">프로그램 코드 {{ program.program_code }}</span>
+    <a href="/teacher/programs/{{ program.id }}" class="secondary-button compact-button">제출현황</a>
+    <a href="/teacher" class="secondary-button compact-button">목록으로</a>
+  </div>
+{% endblock %}
+
+{% block content %}
+  <section class="page-section teacher-home-shell">
+    <div class="teacher-home-hero">
+      <p class="section-kicker">INDIVIDUAL REVIEW</p>
+      <h2>개별 면담지 리스트</h2>
+      <p class="card-description">{{ program.title }} 프로그램의 학생별 제출 상태를 표로 확인하고, 면담지 확인 버튼으로 개별 검토 화면에 들어갈 수 있습니다.</p>
+    </div>
+  </section>
+
+  <section class="page-section">
+    <div class="card teacher-list-card">
+      <div class="teacher-frame-badge teacher-frame-badge-inline">개별 면담지 리스트</div>
+
+      <div class="data-table-card teacher-program-table" data-table-root data-page-size="12">
+        <div class="data-table-toolbar">
+          <input type="search" class="data-table-search" placeholder="학생이름 / 학번 / 탐구주제 / 희망진로 검색" data-table-search />
+          <div class="data-table-meta" data-table-status></div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="app-table">
+            <thead>
+              <tr>
+                <th>학생이름</th>
+                <th>학번</th>
+                <th>탐구주제</th>
+                <th>희망진로</th>
+                <th>상태</th>
+                <th>관리</th>
+              </tr>
+            </thead>
+            <tbody data-table-body>
+              {% for row in review_rows %}
+                <tr>
+                  <td>{{ row.student_name or "-" }}</td>
+                  <td>{{ row.student_number or "-" }}</td>
+                  <td>{{ row.topic }}</td>
+                  <td>{{ row.career }}</td>
+                  <td><span class="status-badge">{{ row.status_label }}</span></td>
+                  <td>
+                    {% if row.submission_id %}
+                      <a href="/teacher/programs/{{ program.id }}/reviews/{{ row.submission_id }}" class="ghost-link">면담지 확인</a>
+                    {% else %}
+                      <span class="table-muted-action">학생 작성 중</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% else %}
+                <tr data-empty-row>
+                  <td colspan="6">아직 개별 검토할 학생 작성 내용이 없습니다.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="data-table-footer">
+          <div class="pagination-info" data-table-page></div>
+          <div class="pagination-actions">
+            <button type="button" class="secondary-button compact-button" data-table-prev>이전</button>
+            <button type="button" class="secondary-button compact-button" data-table-next>다음</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+{% endblock %}

@@ -126,7 +126,8 @@
                   <td><span class="status-badge">{{ status_label(program.status, "program") }}</span></td>
                   <td>
                     <div class="row-actions">
-                      <a href="/teacher/programs/{{ program.id }}" class="ghost-link">면담지 확인</a>
+                      <a href="/teacher/programs/{{ program.id }}" class="ghost-link">제출현황</a>
+                      <a href="/teacher/programs/{{ program.id }}/reviews" class="ghost-link">개별 검토</a>
                       {% if program.status == "collecting" %}
                         <form action="/teacher/programs/{{ program.id }}/submit" method="post" class="inline-action-form">
                           <button type="submit" class="ghost-button-inline">제출하기</button>

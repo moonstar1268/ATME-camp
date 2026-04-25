@@ -693,6 +693,12 @@ button:disabled {
   line-height: 1.4;
 }
 
+.table-muted-action {
+  color: var(--text-soft);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
 .prewrap-cell,
 .prewrap-text,
 .detail-block p,
@@ -1166,6 +1172,10 @@ button:disabled {
   min-height: 120px;
 }
 
+.student-stage-display-card-double {
+  grid-column: span 2;
+}
+
 .student-stage-display-label {
   display: inline-flex;
   align-items: center;
@@ -1182,6 +1192,20 @@ button:disabled {
 .student-stage-display-card strong {
   font-size: 1.02rem;
   line-height: 1.55;
+}
+
+.student-stage-action-card {
+  grid-column: 3;
+}
+
+.student-stage-action-stack {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+}
+
+.student-stage-action-stack .ghost-link {
+  font-weight: 700;
 }
 
 .student-stage-input-grid {
@@ -2032,6 +2056,14 @@ button:disabled {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .student-stage-action-card {
+    grid-column: 2;
+  }
+
+  .student-stage-display-card-double {
+    grid-column: span 2;
+  }
+
   .student-stage-input-row {
     grid-template-columns: 1fr;
   }
@@ -2080,6 +2112,14 @@ button:disabled {
   .reference-select-grid-school,
   .reference-select-grid-curriculum {
     grid-template-columns: 1fr;
+  }
+
+  .student-stage-action-card {
+    grid-column: auto;
+  }
+
+  .student-stage-display-card-double {
+    grid-column: auto;
   }
 
   .field-span-2 {
