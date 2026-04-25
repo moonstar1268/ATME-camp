@@ -2922,32 +2922,72 @@ def admin_dashboard(request: Request) -> Response:
         return auth
     admin = get_current_admin(request)
     active_admin_panel = current_admin_panel(request)
-    teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
-    program_options = list_program_options(request.db)
-    teacher_management_rows = build_teacher_management_rows(request.db, teachers, program_options)
-    teacher_assignments = query_teacher_assignments(request.db)
-    template_rows = request.db.execute(
-        """
-        SELECT
-            pt.*,
-            (
-                SELECT COUNT(*) FROM programs p
-                WHERE p.template_id = pt.id
-            ) AS usage_count
-        FROM program_templates pt
-        ORDER BY pt.created_at DESC
-        """
-    ).fetchall()
-    templates = [get_template_card(row) for row in template_rows]
-    blank_filters = {
-        "year": "",
-        "semester": "",
-        "school_name": "",
-        "teacher_id": "",
-        "status": "",
-        "keyword": "",
-    }
-    camp_programs = query_programs(request.db, blank_filters)
+    teachers: list[sqlite3.Row] = []
+    program_options: list[dict[str, Any]] = []
+    teacher_management_rows: list[dict[str, Any]] = []
+    teacher_assignments: list[sqlite3.Row] = []
+    templates: list[dict[str, Any]] = []
+    camp_programs: list[dict[str, Any]] = []
+
+    if active_admin_panel in {"camp-create"}:
+        teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
+        template_rows = request.db.execute(
+            """
+            SELECT
+                pt.*,
+                (
+                    SELECT COUNT(*) FROM programs p
+                    WHERE p.template_id = pt.id
+                ) AS usage_count
+            FROM program_templates pt
+            ORDER BY pt.created_at DESC
+            """
+        ).fetchall()
+        templates = [get_template_card(row) for row in template_rows]
+        camp_programs = query_programs(
+            request.db,
+            {
+                "year": "",
+                "semester": "",
+                "school_name": "",
+                "teacher_id": "",
+                "status": "",
+                "keyword": "",
+            },
+        )
+    elif active_admin_panel == "camp-list":
+        camp_programs = query_programs(
+            request.db,
+            {
+                "year": "",
+                "semester": "",
+                "school_name": "",
+                "teacher_id": "",
+                "status": "",
+                "keyword": "",
+            },
+        )
+    elif active_admin_panel == "teacher-list":
+        teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
+        program_options = list_program_options(request.db)
+        teacher_management_rows = build_teacher_management_rows(request.db, teachers, program_options)
+    elif active_admin_panel == "teacher-irregular":
+        teacher_assignments = query_teacher_assignments(request.db)
+    elif active_admin_panel in {"template-create", "template-manage"}:
+        template_rows = request.db.execute(
+            """
+            SELECT
+                pt.*,
+                (
+                    SELECT COUNT(*) FROM programs p
+                    WHERE p.template_id = pt.id
+                ) AS usage_count
+            FROM program_templates pt
+            ORDER BY pt.created_at DESC
+            """
+        ).fetchall()
+        templates = [get_template_card(row) for row in template_rows]
+
     return render_template(
         request,
         "admin_dashboard.html",
