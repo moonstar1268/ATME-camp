@@ -2187,6 +2187,11 @@ button:disabled {
   font-weight: 800;
 }
 
+.table-action-cell {
+  width: 68px;
+  text-align: right;
+}
+
 .empty-state {
   display: grid;
   gap: 8px;

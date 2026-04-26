@@ -3070,6 +3070,55 @@ def admin_create_teacher(request: Request) -> Response:
     return redirect_response(admin_panel_path("teacher-create"))
 
 
+@route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/delete")
+def admin_delete_teacher(request: Request, teacher_id: str) -> Response:
+    auth = require_role(request, "admin")
+    if auth:
+        return auth
+
+    teacher = request.db.execute(
+        "SELECT id, name, username FROM teachers WHERE id = ?",
+        (teacher_id,),
+    ).fetchone()
+    if not teacher:
+        set_flash(request.db, request.session["id"], "삭제할 강사 정보를 찾을 수 없습니다.", "error")
+        return redirect_response(admin_panel_path("teacher-list"))
+
+    assignment_count_row = request.db.execute(
+        "SELECT COUNT(*) AS count FROM program_teachers WHERE teacher_id = ?",
+        (teacher_id,),
+    ).fetchone()
+    primary_count_row = request.db.execute(
+        "SELECT COUNT(*) AS count FROM programs WHERE teacher_id = ?",
+        (teacher_id,),
+    ).fetchone()
+    assignment_count = int(assignment_count_row["count"] if assignment_count_row else 0)
+    primary_count = int(primary_count_row["count"] if primary_count_row else 0)
+
+    if assignment_count > 0 or primary_count > 0:
+        set_flash(
+            request.db,
+            request.session["id"],
+            "배정된 캠프가 있는 강사는 삭제할 수 없습니다. 먼저 배정을 취소해 주세요.",
+            "error",
+        )
+        return redirect_response(admin_panel_path("teacher-list"))
+
+    request.db.execute(
+        "DELETE FROM sessions WHERE role = 'teacher' AND user_id = ?",
+        (teacher_id,),
+    )
+    request.db.execute("DELETE FROM teachers WHERE id = ?", (teacher_id,))
+    request.db.commit()
+    set_flash(
+        request.db,
+        request.session["id"],
+        f"{teacher['name']} 강사를 삭제했습니다.",
+        "success",
+    )
+    return redirect_response(admin_panel_path("teacher-list"))
+
+
 @route("POST", r"/admin/teachers/(?P<teacher_id>\d+)/assign")
 def admin_assign_teacher_to_program(request: Request, teacher_id: str) -> Response:
     auth = require_role(request, "admin")

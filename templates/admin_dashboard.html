@@ -317,15 +317,6 @@
               </div>
             </div>
 
-            <div class="admin-wire-row">
-              <div class="admin-wire-label">학적사항</div>
-              <div class="admin-wire-controls">
-                <label class="form-field admin-wire-field">
-                  <span>학적사항</span>
-                  <textarea name="academic_info" rows="5" placeholder="예: 학교 신분&#10;KAIST 박사과정"></textarea>
-                </label>
-              </div>
-            </div>
           </div>
 
           <div class="page-actions align-right admin-wire-actions">
@@ -349,6 +340,7 @@
                   <th>코드명</th>
                   <th>학교명</th>
                   <th>학과</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody data-table-body>
@@ -360,10 +352,15 @@
                     <td><code>{{ teacher.access_code }}</code></td>
                     <td>{{ teacher.school_name or teacher.university or "-" }}</td>
                     <td>{{ teacher.department_name or "-" }}</td>
+                    <td class="table-action-cell">
+                      <form action="/admin/teachers/{{ teacher.id }}/delete" method="post" class="inline-action-form">
+                        <button type="submit" class="ghost-button-inline delete-mark admin-x-button" aria-label="강사 삭제">×</button>
+                      </form>
+                    </td>
                   </tr>
                 {% else %}
                   <tr data-empty-row>
-                    <td colspan="6">등록된 강사가 없습니다.</td>
+                    <td colspan="7">등록된 강사가 없습니다.</td>
                   </tr>
                 {% endfor %}
               </tbody>
