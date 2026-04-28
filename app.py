@@ -3102,7 +3102,7 @@ def admin_delete_teacher(request: Request, teacher_id: str) -> Response:
             "배정된 캠프가 있는 강사는 삭제할 수 없습니다. 먼저 배정을 취소해 주세요.",
             "error",
         )
-        return redirect_response(admin_panel_path("teacher-list"))
+        return redirect_response(admin_panel_path("teacher-irregular"))
 
     request.db.execute(
         "DELETE FROM sessions WHERE role = 'teacher' AND user_id = ?",
@@ -3194,10 +3194,10 @@ def admin_remove_teacher_from_program(request: Request, teacher_id: str, program
         set_flash(
             request.db,
             request.session["id"],
-            "캠프에는 최소 한 명의 강사가 배정되어 있어야 하므로 마지막 강사는 배정 취소할 수 없습니다.",
+            "캠프에는 최소 한 명의 강사가 배정되어 있어야 하므로 마지막 강사는 배정 취소할 수 없습니다. 마지막 강사는 참여 캠프를 삭제해야 삭제가 가능합니다.",
             "error",
         )
-        return redirect_response(admin_panel_path("teacher-list"))
+        return redirect_response(admin_panel_path("camp-list"))
 
     next_teacher = request.db.execute(
         """

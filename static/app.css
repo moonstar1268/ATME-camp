@@ -2192,6 +2192,18 @@ button:disabled {
   text-align: right;
 }
 
+.table-assignment-stack {
+  min-width: 220px;
+}
+
+.table-assignment-action {
+  gap: 12px;
+}
+
+.table-assignment-action .admin-x-button {
+  flex-shrink: 0;
+}
+
 .empty-state {
   display: grid;
   gap: 8px;

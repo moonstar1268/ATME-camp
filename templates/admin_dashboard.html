@@ -340,7 +340,9 @@
                   <th>코드명</th>
                   <th>학교명</th>
                   <th>학과</th>
-                  <th></th>
+                  <th>캠프 배정 현황</th>
+                  <th>캠프 배정 취소</th>
+                  <th>강사 삭제</th>
                 </tr>
               </thead>
               <tbody data-table-body>
@@ -352,6 +354,41 @@
                     <td><code>{{ teacher.access_code }}</code></td>
                     <td>{{ teacher.school_name or teacher.university or "-" }}</td>
                     <td>{{ teacher.department_name or "-" }}</td>
+                    <td>
+                      {% if teacher.assigned_programs %}
+                        <div class="assignment-chip-list table-assignment-stack">
+                          {% for program in teacher.assigned_programs %}
+                            <div class="assignment-chip">
+                              <div class="assignment-chip-main">
+                                <strong>{{ program.program_title }}</strong>
+                                <small>{{ program.year }} / {{ program.semester }} · {{ program.program_code }}</small>
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% else %}
+                        <span class="table-muted-action">배정 없음</span>
+                      {% endif %}
+                    </td>
+                    <td>
+                      {% if teacher.assigned_programs %}
+                        <div class="assignment-chip-list table-assignment-stack">
+                          {% for program in teacher.assigned_programs %}
+                            <form action="/admin/teachers/{{ teacher.id }}/programs/{{ program.program_id }}/remove" method="post" class="inline-action-form">
+                              <div class="assignment-chip table-assignment-action">
+                                <div class="assignment-chip-main">
+                                  <strong>{{ program.program_title }}</strong>
+                                  <small>{{ program.program_code }}</small>
+                                </div>
+                                <button type="submit" class="ghost-button-inline delete-mark admin-x-button" aria-label="캠프 배정 취소">×</button>
+                              </div>
+                            </form>
+                          {% endfor %}
+                        </div>
+                      {% else %}
+                        <span class="table-muted-action">취소할 배정 없음</span>
+                      {% endif %}
+                    </td>
                     <td class="table-action-cell">
                       <form action="/admin/teachers/{{ teacher.id }}/delete" method="post" class="inline-action-form">
                         <button type="submit" class="ghost-button-inline delete-mark admin-x-button" aria-label="강사 삭제">×</button>
@@ -360,7 +397,7 @@
                   </tr>
                 {% else %}
                   <tr data-empty-row>
-                    <td colspan="7">등록된 강사가 없습니다.</td>
+                    <td colspan="9">등록된 강사가 없습니다.</td>
                   </tr>
                 {% endfor %}
               </tbody>
