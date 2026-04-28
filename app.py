@@ -3105,7 +3105,7 @@ def admin_delete_teacher(request: Request, teacher_id: str) -> Response:
         return redirect_response(admin_panel_path("teacher-irregular"))
 
     request.db.execute(
-        "DELETE FROM sessions WHERE role = 'teacher' AND user_id = ?",
+        "DELETE FROM sessions WHERE role = 'teacher' AND teacher_id = ?",
         (teacher_id,),
     )
     request.db.execute("DELETE FROM teachers WHERE id = ?", (teacher_id,))
