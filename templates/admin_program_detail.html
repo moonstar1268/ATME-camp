@@ -34,7 +34,7 @@
           <section class="subsection-card compact-top">
             <div class="section-head">
               <h3>배정 강사 목록</h3>
-              <p>캠프와 연결된 강사 정보를 한눈에 확인합니다.</p>
+              <p>캠프에 연결된 강사 정보를 한눈에 확인합니다.</p>
             </div>
             <div class="chip-grid">
               {% for teacher in program.assigned_teachers %}
@@ -88,7 +88,7 @@
             <div>
               <p class="section-kicker">RESULT REVIEW</p>
               <h2>{{ submission.student_name }} ({{ submission.student_number }})</h2>
-              <p class="card-description">희망전공: {{ submission.desired_major }} · 상태: {{ status_label(submission.status, "submission") }}</p>
+              <p class="card-description">희망 전공: {{ submission.desired_major }} / 상태: {{ status_label(submission.status, "submission") }}</p>
             </div>
           </div>
 
@@ -114,17 +114,21 @@
               <div class="detail-block compact-top">
                 <span>평가 내용</span>
                 <p>{{ submission.teacher_evaluation or "아직 강사 평가가 없습니다." }}</p>
+                <p class="char-counter-static">글자 수(공백 포함): <strong>{{ (submission.teacher_evaluation or "")|length }}자</strong></p>
               </div>
             </section>
 
             <form action="/admin/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form subsection-card">
               <div class="section-head">
                 <h3>관리자 최종 평가</h3>
-                <p>최종 다운로드에 반영될 문장을 정리합니다.</p>
+                <p>최종 다운로드에 반영할 문장을 정리합니다.</p>
               </div>
-              <label class="form-field">
+              <label class="form-field char-counter-field" data-char-counter-root>
                 <span>최종 평가 내용</span>
-                <textarea name="admin_feedback" rows="8" placeholder="관리자 기준 최종 평가를 입력해 주세요.">{{ submission.admin_feedback or submission.teacher_evaluation }}</textarea>
+                <textarea name="admin_feedback" rows="8" placeholder="관리자 기준 최종 평가를 입력해 주세요." data-char-count-source>{{ submission.admin_feedback or submission.teacher_evaluation }}</textarea>
+                <div class="char-counter-meta">
+                  <span>현재 글자 수(공백 포함): <strong data-char-count-current>{{ (submission.admin_feedback or submission.teacher_evaluation or "")|length }}자</strong></span>
+                </div>
               </label>
               <div class="page-actions align-right">
                 <button type="submit" class="primary-button admin">관리자 평가 저장</button>
@@ -135,7 +139,7 @@
       {% else %}
         <div class="card empty-state">
           <h3>아직 학생 제출이 없습니다.</h3>
-          <p>학생이 프로그램 코드로 질문지를 제출하면 이 화면에서 강사 평가와 함께 검토할 수 있습니다.</p>
+          <p>학생이 프로그램 코드로 질문지를 제출하면 이 화면에서 강사 평가와 함께 결과물을 검토할 수 있습니다.</p>
         </div>
       {% endfor %}
     </div>

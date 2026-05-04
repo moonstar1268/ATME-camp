@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initStudentReviewModal();
   initAdminSchoolSelector();
   initStudentCurriculumSelectors();
+  initCharacterCounters();
 });
 
 function initTabs() {
@@ -1571,4 +1572,836 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function initCharacterCounters() {
+  const roots = document.querySelectorAll("[data-char-counter-root]");
+  roots.forEach((root) => {
+    if (root.dataset.counterReady === "true") {
+      return;
+    }
+    root.dataset.counterReady = "true";
+
+    const source = root.querySelector("[data-char-count-source]");
+    const current = root.querySelector("[data-char-count-current]");
+    if (!source || !current) {
+      return;
+    }
+
+    const min = Number.parseInt(root.dataset.charMin || "", 10);
+    const max = Number.parseInt(root.dataset.charMax || "", 10);
+
+    const update = () => {
+      const count = String(source.value || "").length;
+      current.textContent = `${count}자`;
+      root.classList.toggle("is-under", Number.isFinite(min) && count > 0 && count < min);
+      root.classList.toggle("is-over", Number.isFinite(max) && count > max);
+      root.classList.toggle(
+        "is-target",
+        Number.isFinite(min) && Number.isFinite(max) && count >= min && count <= max,
+      );
+    };
+
+    source.addEventListener("input", update);
+    update();
+  });
+}
+
+function initStudentCurriculumSelectors() {
+  const form = document.querySelector("form[action='/student/submit']");
+  const selectionRoot = form?.querySelector("[data-student-selection-root]");
+  const selectionSource = selectionRoot?.querySelector("[data-student-selection-source]");
+  if (!form || !selectionRoot || !selectionSource) {
+    return;
+  }
+
+  if (selectionRoot.dataset.selectionReady === "true") {
+    return;
+  }
+  selectionRoot.dataset.selectionReady = "true";
+
+  const curriculumPairs = Array.from({ length: 2 }, (_, index) => {
+    const suffix = String(index + 1);
+    const subjectInput =
+      form.querySelector(`input[name='linked_subject_${suffix}']`) ||
+      form.querySelector(`textarea[name='linked_subject_${suffix}']`);
+    const unitInput =
+      form.querySelector(`input[name='linked_unit_${suffix}']`) ||
+      form.querySelector(`textarea[name='linked_unit_${suffix}']`);
+    if (!subjectInput || !unitInput) {
+      return null;
+    }
+
+    const hideField = (field) => {
+      field.closest("label")?.setAttribute("hidden", "hidden");
+      if (field.tagName === "INPUT") {
+        field.type = "hidden";
+      } else {
+        field.hidden = true;
+      }
+    };
+
+    hideField(subjectInput);
+    hideField(unitInput);
+    return { subjectInput, unitInput };
+  }).filter(Boolean);
+
+  if (!curriculumPairs.length) {
+    return;
+  }
+
+  const careerGoalInput =
+    form.querySelector("input[name='career_goal']") || form.querySelector("textarea[name='career_goal']");
+  const careerMajorInput =
+    form.querySelector("input[name='career_major']") || form.querySelector("textarea[name='career_major']");
+
+  const hideField = (field) => {
+    if (!field) {
+      return;
+    }
+    field.closest("label")?.setAttribute("hidden", "hidden");
+    if (field.tagName === "INPUT") {
+      field.type = "hidden";
+    } else {
+      field.hidden = true;
+    }
+  };
+
+  hideField(careerGoalInput);
+  hideField(careerMajorInput);
+
+  selectionSource.hidden = true;
+  const launchGrid = document.createElement("div");
+  launchGrid.className = "student-selection-launch-grid";
+  selectionRoot.appendChild(launchGrid);
+
+  const createSelectionCard = (title, description, buttonLabel) => {
+    const card = document.createElement("div");
+    card.className = "student-selection-launch-card";
+
+    const heading = document.createElement("div");
+    heading.className = "student-selection-launch-head";
+
+    const titleNode = document.createElement("h5");
+    titleNode.textContent = title;
+
+    const descriptionNode = document.createElement("p");
+    descriptionNode.textContent = description;
+
+    const summary = document.createElement("div");
+    summary.className = "student-selection-summary-card";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "primary-button student compact-button";
+    button.textContent = buttonLabel;
+
+    heading.appendChild(titleNode);
+    heading.appendChild(descriptionNode);
+    card.appendChild(heading);
+    card.appendChild(summary);
+    card.appendChild(button);
+    return { card, summary, button };
+  };
+
+  const createSummaryChip = (label, onRemove) => {
+    const chip = document.createElement("div");
+    chip.className = "student-selection-chip";
+    chip.innerHTML = `<span>${escapeHtml(label)}</span>`;
+    if (onRemove) {
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.textContent = "×";
+      removeButton.addEventListener("click", onRemove);
+      chip.appendChild(removeButton);
+    }
+    return chip;
+  };
+
+  const createSelectionDialog = (title) => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "app-modal student-selection-modal";
+    dialog.innerHTML = `
+      <div class="modal-panel student-selection-modal-panel">
+        <div class="student-selection-modal-header">
+          <h3>${escapeHtml(title)}</h3>
+          <button type="button" class="student-selection-modal-close" aria-label="닫기">×</button>
+        </div>
+        <div class="student-selection-modal-body"></div>
+      </div>
+    `;
+    dialog.querySelector(".student-selection-modal-close")?.addEventListener("click", () => closeDialog(dialog));
+    dialog.addEventListener("click", (event) => {
+      if (event.target === dialog) {
+        closeDialog(dialog);
+      }
+    });
+    document.body.appendChild(dialog);
+    return {
+      dialog,
+      body: dialog.querySelector(".student-selection-modal-body"),
+    };
+  };
+
+  const curriculumCard = createSelectionCard(
+    "교과/단원 선택",
+    "연계 교과는 최대 2개까지 선택할 수 있고, 각 교과별로 소단원을 최대 3개까지 고를 수 있습니다.",
+    "교과/단원 선택",
+  );
+  const careerCard = createSelectionCard(
+    "진로 분야 선택",
+    "희망 진로는 최대 3개까지 선택해 질문지에 반영할 수 있습니다.",
+    "진로 분야 선택",
+  );
+  launchGrid.appendChild(curriculumCard.card);
+  launchGrid.appendChild(careerCard.card);
+
+  const curriculumDialogParts = createSelectionDialog("교과/단원 선택");
+  const careerDialogParts = createSelectionDialog("진로 분야 선택");
+
+  const curriculumState = {
+    selectedSubjects: [],
+    subject: null,
+    selectedSubUnits: [],
+  };
+  const careerState = {
+    options: [],
+    selected: [],
+  };
+
+  const groupCurricula = (items) => {
+    const groups = new Map();
+    items.forEach((item) => {
+      const groupName =
+        item.curriculumCategoryName ||
+        item.curriculumGroupName ||
+        item.groupName ||
+        item.subjectGroupName ||
+        "과목 선택";
+      if (!groups.has(groupName)) {
+        groups.set(groupName, []);
+      }
+      groups.get(groupName).push(item);
+    });
+    return Array.from(groups.entries());
+  };
+
+  const cloneUnits = (items) =>
+    items.map((item) => ({
+      id: String(item.id || ""),
+      groupName: item.groupName || "",
+      name: item.name || "",
+    }));
+
+  const findSelectedSubjectIndex = (subject) =>
+    curriculumState.selectedSubjects.findIndex(
+      (item) =>
+        String(item.curriculumId || "") === String(subject?.curriculumId || "") ||
+        String(item.curriculumName || "") === String(subject?.curriculumName || ""),
+    );
+
+  const parseStoredUnits = (subjectName, rawValue, prefix) =>
+    normalizeKeywords(rawValue).map((entry, index) => {
+      let cleaned = entry.trim();
+      if (subjectName && cleaned.startsWith(`${subjectName} - `)) {
+        cleaned = cleaned.slice(subjectName.length + 3);
+      }
+      const parts = cleaned.split(" - ").map((item) => item.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        return {
+          id: `restored-${prefix}-${index}`,
+          groupName: parts[0],
+          name: parts.slice(1).join(" - "),
+        };
+      }
+      return {
+        id: `restored-${prefix}-${index}`,
+        groupName: "선택 단원",
+        name: cleaned || entry,
+      };
+    });
+
+  const syncCurriculumHiddenInputs = () => {
+    curriculumPairs.forEach((pair, index) => {
+      const selected = curriculumState.selectedSubjects[index];
+      pair.subjectInput.value = selected?.curriculumName || "";
+      pair.unitInput.value = (selected?.units || [])
+        .map((item) => `${item.groupName} - ${item.name}`)
+        .join(", ");
+    });
+  };
+
+  const renderCurriculumSummary = () => {
+    curriculumCard.summary.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "student-selection-summary-head";
+    title.innerHTML = `<strong>선택한 교과/단원</strong><span>${curriculumState.selectedSubjects.length} / 2 과목</span>`;
+    curriculumCard.summary.appendChild(title);
+
+    if (!curriculumState.selectedSubjects.length) {
+      const empty = document.createElement("p");
+      empty.className = "student-selection-empty";
+      empty.textContent = "아직 선택한 교과/단원이 없습니다.";
+      curriculumCard.summary.appendChild(empty);
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "student-selection-subject-wrap";
+    curriculumState.selectedSubjects.forEach((subject, index) => {
+      const card = document.createElement("article");
+      card.className = "student-selection-subject-card";
+
+      const head = document.createElement("div");
+      head.className = "student-selection-subject-head";
+      head.innerHTML = `<strong>${escapeHtml(subject.curriculumName || "")}</strong>`;
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "student-selection-subject-remove";
+      removeButton.setAttribute("aria-label", `${subject.curriculumName} 삭제`);
+      removeButton.textContent = "×";
+      removeButton.addEventListener("click", () => {
+        curriculumState.selectedSubjects.splice(index, 1);
+        syncCurriculumHiddenInputs();
+        renderCurriculumSummary();
+        if (curriculumState.subject?.curriculumName === subject.curriculumName) {
+          curriculumState.subject = null;
+          curriculumState.selectedSubUnits = [];
+        }
+        renderCurriculumModalSelection();
+      });
+      head.appendChild(removeButton);
+      card.appendChild(head);
+
+      const chipWrap = document.createElement("div");
+      chipWrap.className = "student-selection-chip-wrap";
+      if ((subject.units || []).length) {
+        subject.units.forEach((item) => {
+          chipWrap.appendChild(createSummaryChip(`${item.groupName} - ${item.name}`));
+        });
+      } else {
+        const empty = document.createElement("p");
+        empty.className = "student-selection-empty";
+        empty.textContent = "선택된 소단원이 없습니다.";
+        chipWrap.appendChild(empty);
+      }
+      card.appendChild(chipWrap);
+      wrap.appendChild(card);
+    });
+
+    curriculumCard.summary.appendChild(wrap);
+  };
+
+  const syncCareerHiddenInputs = () => {
+    const careerNames = careerState.selected.map((item) => item.careerField);
+    const majors = Array.from(
+      new Set(
+        careerState.selected
+          .flatMap((item) => normalizeKeywords(item.relatedMajors || ""))
+          .filter(Boolean),
+      ),
+    );
+    if (careerGoalInput) {
+      careerGoalInput.value = careerNames.join(", ");
+    }
+    if (careerMajorInput) {
+      careerMajorInput.value = (majors.join(", ") || careerNames.join(", ")).trim();
+    }
+  };
+
+  const renderCareerSummary = () => {
+    careerCard.summary.innerHTML = "";
+    const title = document.createElement("div");
+    title.className = "student-selection-summary-head";
+    title.innerHTML = `<strong>선택한 진로 분야</strong><span>${careerState.selected.length} / 3</span>`;
+    careerCard.summary.appendChild(title);
+
+    if (!careerState.selected.length) {
+      const empty = document.createElement("p");
+      empty.className = "student-selection-empty";
+      empty.textContent = "아직 선택한 진로 분야가 없습니다.";
+      careerCard.summary.appendChild(empty);
+      return;
+    }
+
+    const chipWrap = document.createElement("div");
+    chipWrap.className = "student-selection-chip-wrap";
+    careerState.selected.forEach((item, index) => {
+      chipWrap.appendChild(
+        createSummaryChip(item.careerField, () => {
+          careerState.selected.splice(index, 1);
+          syncCareerHiddenInputs();
+          renderCareerSummary();
+          renderCareerModalSelection();
+        }),
+      );
+    });
+    careerCard.summary.appendChild(chipWrap);
+  };
+
+  let curriculumModalDom = null;
+  let careerModalDom = null;
+
+  const renderCurriculumModalSelection = () => {
+    if (!curriculumModalDom) {
+      return;
+    }
+
+    const { subjectGrid, subjectSelectedText, unitSection, selectedList, selectedCount, confirmButton } = curriculumModalDom;
+    subjectSelectedText.textContent = curriculumState.subject
+      ? `선택됨: ${curriculumState.subject.curriculumName}`
+      : "과목을 먼저 선택해 주세요.";
+    selectedCount.textContent = `${curriculumState.selectedSubUnits.length} / 3`;
+
+    Array.from(subjectGrid.querySelectorAll(".student-selection-option-button")).forEach((button) => {
+      const isSelected =
+        button.dataset.curriculumId === String(curriculumState.subject?.curriculumId || "") ||
+        button.dataset.curriculumName === String(curriculumState.subject?.curriculumName || "");
+      button.classList.toggle("is-selected", isSelected);
+    });
+
+    selectedList.innerHTML = "";
+    if (curriculumState.selectedSubUnits.length) {
+      curriculumState.selectedSubUnits.forEach((item, index) => {
+        selectedList.appendChild(
+          createSummaryChip(`${curriculumState.subject?.curriculumName || ""} - ${item.groupName} - ${item.name}`, () => {
+            curriculumState.selectedSubUnits.splice(index, 1);
+            renderCurriculumModalSelection();
+          }),
+        );
+      });
+    } else {
+      const empty = document.createElement("p");
+      empty.className = "student-selection-empty";
+      empty.textContent = "선택한 소단원이 없습니다.";
+      selectedList.appendChild(empty);
+    }
+
+    confirmButton.disabled = !(curriculumState.subject && curriculumState.selectedSubUnits.length);
+
+    if (!curriculumState.subject) {
+      unitSection.innerHTML = '<p class="student-selection-empty student-selection-empty-centered">위에서 과목을 먼저 선택해 주세요.</p>';
+      return;
+    }
+
+    unitSection.innerHTML = "";
+    const renderGroups = async () => {
+      try {
+        const groups = await loadCurriculumUnits(curriculumState.subject.curriculumId);
+        if (!groups.length) {
+          unitSection.innerHTML = '<p class="student-selection-empty student-selection-empty-centered">표시할 대단원이 없습니다.</p>';
+          return;
+        }
+
+        for (const group of groups) {
+          const details = document.createElement("details");
+          details.className = "student-selection-accordion";
+          const summary = document.createElement("summary");
+          summary.textContent = group.curriculumUnitName || "대단원";
+          details.appendChild(summary);
+
+          const box = document.createElement("div");
+          box.className = "student-selection-accordion-body";
+          box.innerHTML = '<p class="student-selection-empty">소단원 목록을 불러오는 중입니다.</p>';
+          details.appendChild(box);
+          unitSection.appendChild(details);
+
+          details.addEventListener("toggle", async () => {
+            if (!details.open || details.dataset.loaded === "true") {
+              return;
+            }
+            details.dataset.loaded = "true";
+            try {
+              const subUnits = await loadCurriculumSubUnits(group.curriculumUnitId);
+              box.innerHTML = "";
+              if (!subUnits.length) {
+                box.innerHTML = '<p class="student-selection-empty">표시할 소단원이 없습니다.</p>';
+                return;
+              }
+
+              subUnits.forEach((subUnit) => {
+                const key = String(subUnit.curriculumSubUnitId);
+                const row = document.createElement("label");
+                row.className = "student-selection-checkbox-row";
+                const checked = curriculumState.selectedSubUnits.some((item) => item.id === key);
+                row.innerHTML = `
+                  <input type="checkbox" ${checked ? "checked" : ""} />
+                  <span>${escapeHtml(subUnit.curriculumSubUnitName || "")}</span>
+                `;
+                const checkbox = row.querySelector("input");
+                checkbox.addEventListener("change", () => {
+                  const existingIndex = curriculumState.selectedSubUnits.findIndex((item) => item.id === key);
+                  if (checkbox.checked) {
+                    if (existingIndex === -1 && curriculumState.selectedSubUnits.length >= 3) {
+                      checkbox.checked = false;
+                      window.alert("교과별 소단원은 최대 3개까지 선택할 수 있습니다.");
+                      return;
+                    }
+                    if (existingIndex === -1) {
+                      curriculumState.selectedSubUnits.push({
+                        id: key,
+                        name: subUnit.curriculumSubUnitName || "",
+                        groupName: group.curriculumUnitName || "",
+                      });
+                    }
+                  } else if (existingIndex !== -1) {
+                    curriculumState.selectedSubUnits.splice(existingIndex, 1);
+                  }
+                  renderCurriculumModalSelection();
+                });
+                box.appendChild(row);
+              });
+            } catch {
+              box.innerHTML = '<p class="student-selection-empty">소단원 목록을 불러오지 못했습니다.</p>';
+            }
+          });
+        }
+      } catch {
+        unitSection.innerHTML = '<p class="student-selection-empty student-selection-empty-centered">대단원 목록을 불러오지 못했습니다.</p>';
+      }
+    };
+
+    renderGroups();
+  };
+
+  const openCurriculumDialog = async () => {
+    if (!curriculumModalDom) {
+      const container = curriculumDialogParts.body;
+      const subjectSection = document.createElement("section");
+      subjectSection.className = "student-selection-modal-section";
+      subjectSection.innerHTML = `
+        <div class="student-selection-modal-section-head">
+          <strong>과목 선택</strong>
+          <span class="student-selection-inline-note" data-subject-selected-text>과목을 먼저 선택해 주세요.</span>
+        </div>
+        <div class="student-selection-modal-scroll">
+          <div class="student-selection-option-grid" data-subject-grid></div>
+        </div>
+      `;
+
+      const unitSection = document.createElement("section");
+      unitSection.className = "student-selection-modal-section";
+      unitSection.innerHTML = `
+        <div class="student-selection-modal-section-head">
+          <div>
+            <strong>대단원 / 소단원 선택</strong>
+            <p>대단원을 누르면 아래에 소단원이 펼쳐집니다.</p>
+          </div>
+          <span class="student-selection-inline-note">최대 3개 선택</span>
+        </div>
+        <div class="student-selection-modal-scroll student-selection-modal-scroll-tall" data-unit-section></div>
+      `;
+
+      const selectedSection = document.createElement("section");
+      selectedSection.className = "student-selection-modal-section";
+      selectedSection.innerHTML = `
+        <div class="student-selection-modal-section-head">
+          <strong>선택한 소단원</strong>
+          <span class="student-selection-inline-note" data-selected-count>0 / 3</span>
+        </div>
+        <div class="student-selection-chip-wrap" data-selected-unit-list></div>
+      `;
+
+      const footer = document.createElement("div");
+      footer.className = "student-selection-modal-footer";
+      const confirmButton = document.createElement("button");
+      confirmButton.type = "button";
+      confirmButton.className = "primary-button student";
+      confirmButton.textContent = "선택 완료";
+      confirmButton.disabled = true;
+      confirmButton.addEventListener("click", () => {
+        if (!curriculumState.subject || !curriculumState.selectedSubUnits.length) {
+          return;
+        }
+
+        const existingIndex = findSelectedSubjectIndex(curriculumState.subject);
+        if (existingIndex === -1 && curriculumState.selectedSubjects.length >= 2) {
+          window.alert("연계 교과는 최대 2개까지 선택할 수 있습니다.");
+          return;
+        }
+
+        const payload = {
+          curriculumId: curriculumState.subject.curriculumId || "",
+          curriculumName: curriculumState.subject.curriculumName || "",
+          units: cloneUnits(curriculumState.selectedSubUnits),
+        };
+
+        if (existingIndex === -1) {
+          curriculumState.selectedSubjects.push(payload);
+        } else {
+          curriculumState.selectedSubjects.splice(existingIndex, 1, payload);
+        }
+
+        syncCurriculumHiddenInputs();
+        renderCurriculumSummary();
+        closeDialog(curriculumDialogParts.dialog);
+      });
+      footer.appendChild(confirmButton);
+
+      container.appendChild(subjectSection);
+      container.appendChild(unitSection);
+      container.appendChild(selectedSection);
+      container.appendChild(footer);
+
+      curriculumModalDom = {
+        subjectGrid: subjectSection.querySelector("[data-subject-grid]"),
+        subjectSelectedText: subjectSection.querySelector("[data-subject-selected-text]"),
+        unitSection: unitSection.querySelector("[data-unit-section]"),
+        selectedList: selectedSection.querySelector("[data-selected-unit-list]"),
+        selectedCount: selectedSection.querySelector("[data-selected-count]"),
+        confirmButton,
+      };
+
+      try {
+        const groupedCurricula = groupCurricula(await loadCurricula());
+        curriculumModalDom.subjectGrid.innerHTML = "";
+        groupedCurricula.forEach(([groupName, items]) => {
+          const group = document.createElement("div");
+          group.className = "student-selection-option-group";
+          const label = document.createElement("p");
+          label.className = "student-selection-option-group-label";
+          label.textContent = `[${groupName}]`;
+          const grid = document.createElement("div");
+          grid.className = "student-selection-option-grid";
+
+          items.forEach((item) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "student-selection-option-button";
+            button.dataset.curriculumId = String(item.curriculumId || "");
+            button.dataset.curriculumName = String(item.curriculumName || "");
+            button.textContent = item.curriculumName || "";
+            button.addEventListener("click", () => {
+              const existing = curriculumState.selectedSubjects.find(
+                (subject) =>
+                  String(subject.curriculumId || "") === String(item.curriculumId || "") ||
+                  String(subject.curriculumName || "") === String(item.curriculumName || ""),
+              );
+              curriculumState.subject = item;
+              curriculumState.selectedSubUnits = existing ? cloneUnits(existing.units || []) : [];
+              renderCurriculumModalSelection();
+            });
+            grid.appendChild(button);
+
+            if (
+              curriculumState.subject &&
+              !curriculumState.subject.curriculumId &&
+              String(curriculumState.subject.curriculumName || "") === String(item.curriculumName || "")
+            ) {
+              curriculumState.subject = item;
+            }
+          });
+
+          group.appendChild(label);
+          group.appendChild(grid);
+          curriculumModalDom.subjectGrid.appendChild(group);
+        });
+      } catch {
+        curriculumModalDom.subjectGrid.innerHTML = '<p class="student-selection-empty student-selection-empty-centered">과목 목록을 불러오지 못했습니다.</p>';
+      }
+    }
+
+    if (!curriculumState.subject && curriculumState.selectedSubjects.length) {
+      const first = curriculumState.selectedSubjects[0];
+      curriculumState.subject = {
+        curriculumId: first.curriculumId || "",
+        curriculumName: first.curriculumName || "",
+      };
+      curriculumState.selectedSubUnits = cloneUnits(first.units || []);
+    }
+
+    renderCurriculumModalSelection();
+    openDialog(curriculumDialogParts.dialog);
+  };
+
+  const renderCareerModalSelection = () => {
+    if (!careerModalDom) {
+      return;
+    }
+    careerModalDom.selectionCount.textContent = `${careerState.selected.length} / 3`;
+    careerModalDom.selectedList.innerHTML = "";
+
+    if (!careerState.selected.length) {
+      const empty = document.createElement("p");
+      empty.className = "student-selection-empty";
+      empty.textContent = "아직 선택한 진로 분야가 없습니다.";
+      careerModalDom.selectedList.appendChild(empty);
+    } else {
+      careerState.selected.forEach((item, index) => {
+        careerModalDom.selectedList.appendChild(
+          createSummaryChip(item.careerField, () => {
+            careerState.selected.splice(index, 1);
+            syncCareerHiddenInputs();
+            renderCareerSummary();
+            renderCareerModalSelection();
+          }),
+        );
+      });
+    }
+
+    Array.from(careerModalDom.optionGrid.querySelectorAll(".student-selection-option-button")).forEach((button) => {
+      button.classList.toggle(
+        "is-selected",
+        careerState.selected.some((item) => String(item.desiredCareerId) === button.dataset.id),
+      );
+    });
+    careerModalDom.confirmButton.disabled = !careerState.selected.length;
+  };
+
+  const openCareerDialog = async () => {
+    if (!careerModalDom) {
+      const container = careerDialogParts.body;
+      const section = document.createElement("section");
+      section.className = "student-selection-modal-section";
+      section.innerHTML = `
+        <div class="student-selection-modal-section-head">
+          <strong>진로 분야</strong>
+          <span class="student-selection-inline-note">최대 3개 선택</span>
+        </div>
+        <div class="student-selection-option-grid" data-career-grid></div>
+      `;
+
+      const selectedSection = document.createElement("section");
+      selectedSection.className = "student-selection-modal-section";
+      selectedSection.innerHTML = `
+        <div class="student-selection-modal-section-head">
+          <strong>선택한 진로 분야</strong>
+          <span class="student-selection-inline-note" data-selected-count>0 / 3</span>
+        </div>
+        <div class="student-selection-chip-wrap" data-selected-careers></div>
+      `;
+
+      const footer = document.createElement("div");
+      footer.className = "student-selection-modal-footer";
+      const confirmButton = document.createElement("button");
+      confirmButton.type = "button";
+      confirmButton.className = "primary-button student";
+      confirmButton.textContent = "선택 완료";
+      confirmButton.disabled = true;
+      confirmButton.addEventListener("click", () => {
+        syncCareerHiddenInputs();
+        renderCareerSummary();
+        closeDialog(careerDialogParts.dialog);
+      });
+      footer.appendChild(confirmButton);
+
+      container.appendChild(section);
+      container.appendChild(selectedSection);
+      container.appendChild(footer);
+
+      careerModalDom = {
+        optionGrid: section.querySelector("[data-career-grid]"),
+        selectedList: selectedSection.querySelector("[data-selected-careers]"),
+        selectionCount: selectedSection.querySelector("[data-selected-count]"),
+        confirmButton,
+      };
+
+      try {
+        careerState.options = await loadDesiredCareers();
+        careerState.options.forEach((career) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "student-selection-option-button";
+          button.dataset.id = String(career.desiredCareerId);
+          button.textContent = career.careerField || "";
+          button.addEventListener("click", () => {
+            const existingIndex = careerState.selected.findIndex(
+              (item) => String(item.desiredCareerId) === String(career.desiredCareerId),
+            );
+            if (existingIndex !== -1) {
+              careerState.selected.splice(existingIndex, 1);
+            } else {
+              if (careerState.selected.length >= 3) {
+                window.alert("진로 분야는 최대 3개까지 선택할 수 있습니다.");
+                return;
+              }
+              careerState.selected.push(career);
+            }
+            syncCareerHiddenInputs();
+            renderCareerSummary();
+            renderCareerModalSelection();
+          });
+          careerModalDom.optionGrid.appendChild(button);
+        });
+      } catch {
+        careerModalDom.optionGrid.innerHTML = '<p class="student-selection-empty student-selection-empty-centered">진로 분야 목록을 불러오지 못했습니다.</p>';
+      }
+    }
+
+    renderCareerModalSelection();
+    openDialog(careerDialogParts.dialog);
+  };
+
+  const restoreCurriculumSelection = () => {
+    const restoredSubjects = curriculumPairs
+      .map((pair, index) => {
+        const subjectName = String(pair.subjectInput.value || "").trim();
+        if (!subjectName) {
+          return null;
+        }
+        return {
+          curriculumId: `restored-subject-${index + 1}`,
+          curriculumName: subjectName,
+          units: parseStoredUnits(subjectName, pair.unitInput.value || "", index + 1),
+        };
+      })
+      .filter(Boolean);
+
+    const mergedSubjects = new Map();
+    restoredSubjects.forEach((subject) => {
+      const key = String(subject.curriculumName || "").trim();
+      if (!mergedSubjects.has(key)) {
+        mergedSubjects.set(key, {
+          curriculumId: subject.curriculumId,
+          curriculumName: subject.curriculumName,
+          units: [],
+        });
+      }
+      const bucket = mergedSubjects.get(key);
+      (subject.units || []).forEach((unit) => {
+        const unitKey = `${unit.groupName}::${unit.name}`;
+        if (!bucket.units.some((item) => `${item.groupName}::${item.name}` === unitKey)) {
+          bucket.units.push(unit);
+        }
+      });
+    });
+    curriculumState.selectedSubjects = Array.from(mergedSubjects.values()).slice(0, 2);
+
+    if (curriculumState.selectedSubjects.length) {
+      curriculumState.subject = {
+        curriculumId: curriculumState.selectedSubjects[0].curriculumId || "",
+        curriculumName: curriculumState.selectedSubjects[0].curriculumName || "",
+      };
+      curriculumState.selectedSubUnits = cloneUnits(curriculumState.selectedSubjects[0].units || []);
+    }
+
+    syncCurriculumHiddenInputs();
+    renderCurriculumSummary();
+  };
+
+  const restoreCareerSelection = async () => {
+    try {
+      careerState.options = await loadDesiredCareers();
+      const existingNames = normalizeKeywords(careerGoalInput?.value || "");
+      careerState.selected = existingNames
+        .map((name) => careerState.options.find((career) => career.careerField === name))
+        .filter(Boolean)
+        .slice(0, 3);
+    } catch {
+      careerState.selected = normalizeKeywords(careerGoalInput?.value || "").slice(0, 3).map((name, index) => ({
+        desiredCareerId: `restored-${index}`,
+        careerField: name,
+        relatedMajors: careerMajorInput?.value || "",
+      }));
+    }
+    syncCareerHiddenInputs();
+    renderCareerSummary();
+  };
+
+  curriculumCard.button.addEventListener("click", openCurriculumDialog);
+  careerCard.button.addEventListener("click", openCareerDialog);
+
+  restoreCurriculumSelection();
+  restoreCareerSelection();
 }

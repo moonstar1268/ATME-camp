@@ -120,10 +120,30 @@
             <span>강사 수정 요약</span>
             <textarea name="teacher_summary" rows="4" placeholder="면담 내용을 요약해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_summary }}</textarea>
           </label>
-          <label class="form-field field-span-2">
+          <div class="field-span-2 evaluation-guide-card">
+            <span class="evaluation-guide-title">학생 평가는 아래 요소들이 자연스럽게 연결되도록 서술해 주세요.</span>
+            <ul class="guideline-list">
+              <li>학생의 희망 진로 및 관심 분야와 연계한 탐구 참여 동기</li>
+              <li>교과에서 학습한 개념 및 지식을 탐구에 활용한 방법</li>
+              <li>탐구 수행 과정과 학생이 추가로 확장한 내용</li>
+              <li>수행한 탐구와 연속성이 있는 후속 연구계획</li>
+            </ul>
+          </div>
+          <div class="form-field field-span-2 char-counter-field" data-char-counter-root data-char-min="600" data-char-max="700">
             <span>평가 내용</span>
-            <textarea id="teacher-evaluation-{{ submission.id }}" name="teacher_evaluation" rows="8" placeholder="최종 평가 내용을 입력해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_evaluation }}</textarea>
-          </label>
+            <textarea
+              id="teacher-evaluation-{{ submission.id }}"
+              name="teacher_evaluation"
+              rows="8"
+              placeholder="학생 평가 내용을 작성해 주세요."
+              data-char-count-source
+              {% if is_locked %}disabled{% endif %}
+            >{{ submission.teacher_evaluation }}</textarea>
+            <div class="char-counter-meta">
+              <span>현재 글자 수(공백 포함): <strong data-char-count-current>{{ (submission.teacher_evaluation or "")|length }}자</strong></span>
+              <span>권장 글자 수: 600자~700자</span>
+            </div>
+          </div>
         </div>
 
         {% if not is_locked %}
