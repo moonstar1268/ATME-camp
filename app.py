@@ -754,6 +754,21 @@ def final_evaluation(submission: sqlite3.Row | dict[str, Any]) -> str:
     return (submission["teacher_evaluation"] or "").strip()
 
 
+def submission_result_summary(submission: sqlite3.Row | dict[str, Any], *, limit: int = 80) -> str:
+    evaluation = summarize_short_text(final_evaluation(submission), limit=limit)
+    if evaluation != "-":
+        return evaluation
+    answer_map = get_answer_map_from_entries(parse_json(submission.get("answers_json") if isinstance(submission, dict) else submission["answers_json"], []))
+    fallback = (
+        answer_map.get("highlight_point")
+        or answer_map.get("interest_focus")
+        or answer_map.get("curriculum_connection")
+        or answer_map.get("keywords")
+        or ""
+    )
+    return summarize_short_text(fallback, limit=limit)
+
+
 def init_db(*, skip_bootstrap: bool = False) -> None:
     DATA_DIR.mkdir(exist_ok=True)
     with connect_db() as db:
@@ -834,6 +849,7 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
                 teacher_summary TEXT DEFAULT '',
                 teacher_evaluation TEXT DEFAULT '',
                 teacher_updated_at TEXT,
+                teacher_selected INTEGER NOT NULL DEFAULT 0,
                 ai_suggestion TEXT DEFAULT '',
                 ai_generated_at TEXT,
                 ai_model TEXT DEFAULT '',
@@ -1020,6 +1036,8 @@ def ensure_program_teacher_schema(db: sqlite3.Connection) -> None:
 
 def ensure_submission_schema(db: sqlite3.Connection) -> None:
     columns = set(db.column_names("submissions"))
+    if "teacher_selected" not in columns:
+        db.execute("ALTER TABLE submissions ADD COLUMN teacher_selected INTEGER NOT NULL DEFAULT 0")
     if "ai_suggestion" not in columns:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_suggestion TEXT DEFAULT ''")
     if "ai_generated_at" not in columns:
@@ -1982,6 +2000,7 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
                 )
         item["answers"] = normalized_answers
         item["final_evaluation"] = final_evaluation(row)
+        item["result_summary"] = submission_result_summary(item)
         submissions.append(item)
     return submissions
 
@@ -2032,6 +2051,7 @@ def build_submission_review_meta(
     answers: Any,
     updated_at: str = "",
     submission_id: int | None = None,
+    selected_for_submit: bool = False,
 ) -> dict[str, Any]:
     answer_map = get_answer_map_from_entries(answers)
     topic = (
@@ -2056,6 +2076,7 @@ def build_submission_review_meta(
         "status": status,
         "status_label": get_review_status_label(status),
         "updated_at": updated_at,
+        "selected_for_submit": selected_for_submit,
     }
 
 
@@ -2076,6 +2097,7 @@ def get_program_review_rows(db: sqlite3.Connection, program_id: int) -> list[dic
                 answers=submission.get("answers", []),
                 updated_at=submission.get("teacher_updated_at") or submission.get("student_submitted_at") or "",
                 submission_id=int(submission["id"]),
+                selected_for_submit=bool(submission.get("teacher_selected")),
             )
         )
 
@@ -3472,6 +3494,17 @@ def admin_program_detail(request: Request, program_id: str) -> Response:
     if not program:
         return text_response("프로그램을 찾을 수 없습니다.", status="404 Not Found")
     submissions = get_submissions_for_program(request.db, int(program_id))
+    submission_summary_rows = [
+        {
+            "id": submission["id"],
+            "student_name": submission["student_name"],
+            "student_number": submission["student_number"],
+            "result_summary": submission.get("result_summary") or "-",
+            "status_label": status_label(submission["status"], "submission"),
+            "selected_for_submit": bool(submission.get("teacher_selected")),
+        }
+        for submission in submissions
+    ]
     question_schema = get_program_form_schema(program)
     return render_template(
         request,
@@ -3480,6 +3513,7 @@ def admin_program_detail(request: Request, program_id: str) -> Response:
         questions=get_program_questions(program),
         question_schema=question_schema,
         submissions=submissions,
+        submission_summary_rows=submission_summary_rows,
     )
 
 
@@ -3635,12 +3669,14 @@ def teacher_program_detail(request: Request, program_id: str) -> Response:
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    review_rows = get_program_review_rows(request.db, int(program_id))
     return render_template(
         request,
         "teacher_program_detail.html",
         teacher=teacher,
         program=program,
-        review_rows=get_program_review_rows(request.db, int(program_id)),
+        review_rows=review_rows,
+        selected_review_count=sum(1 for row in review_rows if row.get("selected_for_submit")),
         is_locked=program["status"] in {"teacher_submitted", "completed"},
         shell_overrides={
             "nav_groups": build_teacher_nav_groups(int(program_id)),
@@ -3660,12 +3696,14 @@ def teacher_submission_list(request: Request, program_id: str) -> Response:
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    review_rows = get_program_review_rows(request.db, int(program_id))
     return render_template(
         request,
         "teacher_submission_list.html",
         teacher=teacher,
         program=program,
-        review_rows=get_program_review_rows(request.db, int(program_id)),
+        review_rows=review_rows,
+        selected_review_count=sum(1 for row in review_rows if row.get("selected_for_submit")),
         shell_overrides={
             "nav_groups": build_teacher_nav_groups(int(program_id)),
             "active_key": "teacher-reviews",
@@ -3751,6 +3789,47 @@ def teacher_regenerate_ai_suggestion(request: Request, program_id: str, submissi
     return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
 
+@route("POST", r"/teacher/programs/(?P<program_id>\d+)/submissions/(?P<submission_id>\d+)/selection")
+def teacher_toggle_submission_selection(request: Request, program_id: str, submission_id: str) -> Response:
+    auth = require_role(request, "teacher")
+    if auth:
+        return auth
+    teacher = get_current_teacher(request)
+    if not teacher:
+        return redirect_response("/logout")
+    program = get_program_with_teacher(request.db, int(program_id))
+    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
+        return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    if program["status"] in {"teacher_submitted", "completed"}:
+        set_flash(request.db, request.session["id"], "이미 최종 제출이 완료된 프로그램은 제출 대상을 변경할 수 없습니다.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}")
+
+    row = request.db.execute(
+        "SELECT id, status, teacher_evaluation FROM submissions WHERE id = ? AND program_id = ?",
+        (submission_id, program_id),
+    ).fetchone()
+    if not row:
+        set_flash(request.db, request.session["id"], "학생 제출 정보를 찾을 수 없습니다.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}")
+
+    selected_flag = 1 if request.form.get("selected", "").strip() == "1" else 0
+    if selected_flag and not (row["teacher_evaluation"] or "").strip():
+        set_flash(request.db, request.session["id"], "개별 면담지 검토에서 학생 평가 내용을 먼저 저장한 뒤 제출 대상으로 선택해 주세요.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}")
+    request.db.execute(
+        "UPDATE submissions SET teacher_selected = ? WHERE id = ? AND program_id = ?",
+        (selected_flag, submission_id, program_id),
+    )
+    request.db.commit()
+    set_flash(
+        request.db,
+        request.session["id"],
+        "면담지 제출 대상을 업데이트했습니다." if selected_flag else "면담지 제출 대상에서 제외했습니다.",
+        "success",
+    )
+    return redirect_response(f"/teacher/programs/{program_id}")
+
+
 @route("POST", r"/teacher/programs/(?P<program_id>\d+)/submissions/(?P<submission_id>\d+)")
 def teacher_update_submission(request: Request, program_id: str, submission_id: str) -> Response:
     auth = require_role(request, "teacher")
@@ -3766,8 +3845,8 @@ def teacher_update_submission(request: Request, program_id: str, submission_id: 
         set_flash(request.db, request.session["id"], "이미 제출이 완료된 프로그램은 수정할 수 없습니다.", "error")
         return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
 
-    teacher_summary = request.form.get("teacher_summary", "").strip()
     teacher_evaluation = request.form.get("teacher_evaluation", "").strip()
+    teacher_summary = teacher_evaluation
     request.db.execute(
         """
         UPDATE submissions
@@ -3792,6 +3871,18 @@ def teacher_submit_program(request: Request, program_id: str) -> Response:
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
+    selected_count_row = request.db.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM submissions
+        WHERE program_id = ? AND teacher_selected = 1 AND TRIM(COALESCE(teacher_evaluation, '')) <> ''
+        """,
+        (program_id,),
+    ).fetchone()
+    selected_count = int(selected_count_row["count"] if selected_count_row else 0)
+    if selected_count < 1:
+        set_flash(request.db, request.session["id"], "어떤 면담지를 최종 제출할지 먼저 선택해 주세요.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}")
     request.db.execute(
         """
         UPDATE programs
@@ -3801,7 +3892,12 @@ def teacher_submit_program(request: Request, program_id: str) -> Response:
         (now_iso(), program_id),
     )
     request.db.commit()
-    set_flash(request.db, request.session["id"], "강사 최종 제출이 완료되었습니다. 이제 관리자가 확인할 수 있습니다.", "success")
+    set_flash(
+        request.db,
+        request.session["id"],
+        f"강사 최종 제출을 완료했습니다. 선택된 면담지 {selected_count}건이 관리자 확인 대상으로 넘어갑니다.",
+        "success",
+    )
     return redirect_response(f"/teacher/programs/{program_id}")
 
 
@@ -4005,6 +4101,7 @@ def student_submit(request: Request) -> Response:
             SET student_name = ?, desired_major = ?, answers_json = ?,
                 status = 'student_submitted', student_submitted_at = ?,
                 teacher_summary = '', teacher_evaluation = '', teacher_updated_at = NULL,
+                teacher_selected = 0,
                 ai_suggestion = '', ai_generated_at = NULL, ai_model = '', ai_regeneration_count = 0,
                 admin_feedback = '', admin_updated_at = NULL
             WHERE id = ?
@@ -4033,9 +4130,9 @@ def student_submit(request: Request) -> Response:
                 INSERT INTO submissions (
                     program_id, student_number, student_name, desired_major,
                     answers_json, status, student_submitted_at,
-                    teacher_summary, teacher_evaluation, teacher_updated_at,
+                    teacher_summary, teacher_evaluation, teacher_updated_at, teacher_selected,
                     admin_feedback, admin_updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'student_submitted', ?, '', '', NULL, '', NULL)
+                ) VALUES (?, ?, ?, ?, ?, 'student_submitted', ?, '', '', NULL, 0, '', NULL)
                 RETURNING id
                 """,
                 insert_params,
@@ -4047,9 +4144,9 @@ def student_submit(request: Request) -> Response:
                 INSERT INTO submissions (
                     program_id, student_number, student_name, desired_major,
                     answers_json, status, student_submitted_at,
-                    teacher_summary, teacher_evaluation, teacher_updated_at,
+                    teacher_summary, teacher_evaluation, teacher_updated_at, teacher_selected,
                     admin_feedback, admin_updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'student_submitted', ?, '', '', NULL, '', NULL)
+                ) VALUES (?, ?, ?, ?, ?, 'student_submitted', ?, '', '', NULL, 0, '', NULL)
                 """,
                 insert_params,
             )

@@ -82,6 +82,53 @@
     </div>
 
     <div class="stack-layout">
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <p class="section-kicker">RESULT SUMMARY</p>
+            <h2>학생 결과물 요약</h2>
+            <p class="card-description">학생명, 학번, 결과물 요약을 먼저 훑어보고 필요할 때 아래 상세 카드에서 세부 내용을 확인해 주세요.</p>
+          </div>
+        </div>
+        <div class="data-table-card compact-top" data-table-root data-page-size="10">
+          <div class="table-wrap">
+            <table class="app-table">
+              <thead>
+                <tr>
+                  <th>학생명</th>
+                  <th>학번</th>
+                  <th>결과물 내용 요약</th>
+                  <th>상태</th>
+                  <th>선택</th>
+                </tr>
+              </thead>
+              <tbody data-table-body>
+                {% for row in submission_summary_rows %}
+                  <tr>
+                    <td>{{ row.student_name }}</td>
+                    <td>{{ row.student_number }}</td>
+                    <td>{{ row.result_summary }}</td>
+                    <td><span class="status-badge">{{ row.status_label }}</span></td>
+                    <td>{% if row.selected_for_submit %}최종 제출{% else %}-{% endif %}</td>
+                  </tr>
+                {% else %}
+                  <tr data-empty-row>
+                    <td colspan="5">아직 학생 제출이 없습니다.</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="data-table-footer">
+            <div class="pagination-info" data-table-page></div>
+            <div class="pagination-actions">
+              <button type="button" class="secondary-button compact-button" data-table-prev>이전</button>
+              <button type="button" class="secondary-button compact-button" data-table-next>다음</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {% for submission in submissions %}
         <article class="card submission-card">
           <div class="card-header">
@@ -105,11 +152,7 @@
             <section class="subsection-card">
               <div class="section-head">
                 <h3>강사 평가</h3>
-                <p>강사가 검토한 요약과 평가 내용을 확인합니다.</p>
-              </div>
-              <div class="detail-block">
-                <span>요약</span>
-                <p>{{ submission.teacher_summary or "아직 강사 요약이 없습니다." }}</p>
+                <p>강사가 검토 후 정리한 학생 평가 내용을 확인합니다.</p>
               </div>
               <div class="detail-block compact-top">
                 <span>평가 내용</span>

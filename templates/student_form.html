@@ -6,7 +6,6 @@
   {% set curriculum_ids = ['linked_subject_1', 'linked_unit_1', 'linked_subject_2', 'linked_unit_2'] %}
   {% set guidance_ids = ['career_goal', 'career_major'] %}
   {% set keyword_id = 'keywords' %}
-  {% set body_counter = namespace(value=0) %}
   {% set keyword_found = namespace(value=false) %}
 
   {% if error %}
@@ -181,11 +180,10 @@
           <div class="student-writing-body-grid">
             {% for field in question_schema.flat_fields %}
               {% if field.id not in curriculum_ids and field.id not in guidance_ids and field.id != keyword_id %}
-                {% set body_counter.value = body_counter.value + 1 %}
                 <section class="question-block-card student-question-panel">
                   <div class="section-head">
-                    <h4>탐구 내용 {{ body_counter.value }}</h4>
-                    <p>{{ field.label }}</p>
+                    <h4>{{ field.label }}</h4>
+                    <p>탐구 내용과 생각을 자연스럽게 서술해 주세요.</p>
                   </div>
 
                   {% if field.hint %}

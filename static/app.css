@@ -1330,7 +1330,7 @@ button:disabled {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 20px;
-  background: var(--surface-soft);
+  background: #fbfcfe;
 }
 
 .student-selection-summary-head {
@@ -1438,7 +1438,7 @@ button:disabled {
 }
 
 .student-selection-modal-panel {
-  padding: 28px 28px 22px;
+  padding: 32px 32px 26px;
   border-radius: 28px;
 }
 
@@ -1471,7 +1471,7 @@ button:disabled {
 
 .student-selection-modal-body {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .student-selection-modal-section {
@@ -1481,6 +1481,7 @@ button:disabled {
   border: 1px solid #e8edf3;
   border-radius: 22px;
   background: #ffffff;
+  box-shadow: inset 0 0 0 1px #f4f7fb;
 }
 
 .student-selection-modal-section-head {
@@ -1539,10 +1540,10 @@ button:disabled {
 }
 
 .student-selection-option-button {
-  min-height: 50px;
+  min-height: 56px;
   padding: 0 16px;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
+  border-radius: 18px;
   background: #ffffff;
   color: #4b5563;
   text-align: left;
@@ -1631,11 +1632,19 @@ button:disabled {
 .student-selection-modal-footer {
   display: flex;
   justify-content: center;
-  padding-top: 4px;
+  padding-top: 6px;
 }
 
 .student-selection-modal-footer .primary-button {
   width: 100%;
+  min-height: 56px;
+  border-radius: 16px;
+}
+
+.secondary-button.is-selected-toggle {
+  border-color: #3b82f6;
+  background: #eef5ff;
+  color: #1d4ed8;
 }
 
 .evaluation-guide-card {
@@ -1692,6 +1701,10 @@ button:disabled {
 
 .char-counter-field.is-over .char-counter-meta strong {
   color: var(--danger);
+}
+
+.submission-card .answer-grid {
+  align-items: stretch;
 }
 
 .student-selection-layout {

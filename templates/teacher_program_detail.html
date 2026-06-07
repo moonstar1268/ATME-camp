@@ -30,12 +30,13 @@
         {% endif %}
       </div>
 
-      <div class="info-grid compact-top">
-        <div class="info-item"><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
-        <div class="info-item"><span>현재 상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
-        <div class="info-item"><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
-        <div class="info-item"><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
-      </div>
+        <div class="info-grid compact-top">
+          <div class="info-item"><span>프로그램 유형</span><strong>{{ program.template_name }}</strong></div>
+          <div class="info-item"><span>현재 상태</span><strong>{{ status_label(program.status, "program") }}</strong></div>
+          <div class="info-item"><span>학생 제출 수</span><strong>{{ program.submission_count }}</strong></div>
+          <div class="info-item"><span>강사 제출 시각</span><strong>{{ format_datetime(program.teacher_submitted_at) }}</strong></div>
+        </div>
+        <p class="form-hint compact-top">최종 제출 전에 제출할 면담지를 먼저 선택해 주세요. 선택한 면담지만 관리자 확인 대상으로 넘길 수 있습니다.</p>
 
       {% if program.assigned_teachers %}
         <section class="subsection-card compact-top">
@@ -79,6 +80,7 @@
                 <th>탐구주제</th>
                 <th>희망진로</th>
                 <th>상태</th>
+                <th>제출 대상</th>
                 <th>관리</th>
               </tr>
             </thead>
@@ -92,6 +94,18 @@
                   <td><span class="status-badge">{{ row.status_label }}</span></td>
                   <td>
                     {% if row.submission_id %}
+                      <form action="/teacher/programs/{{ program.id }}/submissions/{{ row.submission_id }}/selection" method="post" class="inline-action-form">
+                        <input type="hidden" name="selected" value="{% if row.selected_for_submit %}0{% else %}1{% endif %}" />
+                        <button type="submit" class="secondary-button compact-button {% if row.selected_for_submit %}is-selected-toggle{% endif %}" {% if is_locked %}disabled{% endif %}>
+                          {% if row.selected_for_submit %}선택됨{% else %}선택{% endif %}
+                        </button>
+                      </form>
+                    {% else %}
+                      <span class="table-muted-action">선택 불가</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.submission_id %}
                       <a href="/teacher/programs/{{ program.id }}/reviews/{{ row.submission_id }}" class="ghost-link">면담지 확인</a>
                     {% else %}
                       <span class="table-muted-action">작성 중</span>
@@ -100,7 +114,7 @@
                 </tr>
               {% else %}
                 <tr data-empty-row>
-                  <td colspan="6">아직 확인할 학생 작성 내용이 없습니다.</td>
+                  <td colspan="7">아직 확인할 학생 작성 내용이 없습니다.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -113,6 +127,9 @@
             <button type="button" class="secondary-button compact-button" data-table-next>다음</button>
           </div>
         </div>
+      </div>
+      <div class="page-actions align-right compact-top">
+        <span class="form-hint">현재 선택된 제출 대상: {{ selected_review_count }}건</span>
       </div>
     </section>
   </section>

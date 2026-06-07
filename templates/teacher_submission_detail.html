@@ -35,7 +35,7 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <p class="section-kicker">STUDENT REVIEW</p>
+          <p class="section-kicker">STUDENT INFO</p>
           <h2>{{ submission.student_name }} ({{ submission.student_number }})</h2>
           <p class="card-description">희망 전공: {{ submission.desired_major or "-" }}</p>
         </div>
@@ -44,7 +44,7 @@
         <div class="info-item"><span>학생명</span><strong>{{ submission.student_name }}</strong></div>
         <div class="info-item"><span>학번</span><strong>{{ submission.student_number }}</strong></div>
         <div class="info-item"><span>상태</span><strong>{{ status_label(submission.status, "submission") }}</strong></div>
-        <div class="info-item"><span>최종 평가</span><strong>{{ submission.final_evaluation or "-" }}</strong></div>
+        <div class="info-item"><span>제출 대상</span><strong>{% if submission.teacher_selected %}선택됨{% else %}미선택{% endif %}</strong></div>
       </div>
     </section>
   </section>
@@ -55,7 +55,7 @@
         <div>
           <p class="section-kicker">STUDENT REVIEW</p>
           <h2>{{ submission.student_name }} 학생 제출 내용</h2>
-          <p class="card-description">학생 답변을 검토하고 AI 예시를 참고해 최종 평가 내용을 작성해 주세요.</p>
+          <p class="card-description">학생 답변과 AI 예시를 참고해 생활기록부용 최종 평가 문장을 작성해 주세요.</p>
         </div>
       </div>
 
@@ -116,10 +116,6 @@
 
       <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form compact-top">
         <div class="form-grid">
-          <label class="form-field field-span-2">
-            <span>강사 수정 요약</span>
-            <textarea name="teacher_summary" rows="4" placeholder="면담 내용을 요약해 주세요." {% if is_locked %}disabled{% endif %}>{{ submission.teacher_summary }}</textarea>
-          </label>
           <div class="field-span-2 evaluation-guide-card">
             <span class="evaluation-guide-title">학생 평가는 아래 요소들이 자연스럽게 연결되도록 서술해 주세요.</span>
             <ul class="guideline-list">
@@ -130,7 +126,7 @@
             </ul>
           </div>
           <div class="form-field field-span-2 char-counter-field" data-char-counter-root data-char-min="600" data-char-max="700">
-            <span>평가 내용</span>
+            <span>학생 평가 내용</span>
             <textarea
               id="teacher-evaluation-{{ submission.id }}"
               name="teacher_evaluation"
