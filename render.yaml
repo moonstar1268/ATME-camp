@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:application --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    startCommand: gunicorn app:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120 --keep-alive 5
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -13,6 +13,12 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-5-mini
+      - key: DB_POOL_MIN
+        value: "1"
+      - key: DB_POOL_MAX
+        value: "4"
+      - key: DB_POOL_TIMEOUT
+        value: "10"
     disk:
       name: afe-data
       mountPath: /opt/render/project/src/data

@@ -9,6 +9,7 @@ import string
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from email.utils import formatdate
 from functools import lru_cache
 from http.cookies import SimpleCookie
 from io import BytesIO
@@ -732,6 +733,25 @@ def get_template_card(record: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     return item
 
 
+def query_template_cards(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = db.execute(
+        """
+        SELECT
+            pt.*,
+            COALESCE(stats.usage_count, 0) AS usage_count
+        FROM program_templates pt
+        LEFT JOIN (
+            SELECT template_id, COUNT(*) AS usage_count
+            FROM programs
+            WHERE template_id IS NOT NULL
+            GROUP BY template_id
+        ) stats ON stats.template_id = pt.id
+        ORDER BY pt.created_at DESC
+        """
+    ).fetchall()
+    return [get_template_card(row) for row in rows]
+
+
 def status_label(status: str, kind: str = "program") -> str:
     mapping = PROGRAM_STATUS_LABELS if kind == "program" else SUBMISSION_STATUS_LABELS
     return mapping.get(status, status)
@@ -896,6 +916,7 @@ def init_db(*, skip_bootstrap: bool = False) -> None:
         ensure_submission_schema(db)
         ensure_student_draft_schema(db)
         ensure_program_teacher_schema(db)
+        ensure_database_indexes(db)
         if not skip_bootstrap:
             ensure_bootstrap_data(db)
             ensure_pdf_template_presets(db)
@@ -1046,6 +1067,49 @@ def ensure_submission_schema(db: sqlite3.Connection) -> None:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_model TEXT DEFAULT ''")
     if "ai_regeneration_count" not in columns:
         db.execute("ALTER TABLE submissions ADD COLUMN ai_regeneration_count INTEGER NOT NULL DEFAULT 0")
+    db.commit()
+
+
+def ensure_database_indexes(db: sqlite3.Connection) -> None:
+    db.executescript(
+        """
+        CREATE INDEX IF NOT EXISTS idx_teachers_created_at
+        ON teachers(created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_programs_status_created_at
+        ON programs(status, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_programs_year_semester_created_at
+        ON programs(year DESC, semester, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_programs_teacher_id
+        ON programs(teacher_id);
+
+        CREATE INDEX IF NOT EXISTS idx_program_teachers_teacher_id_program_id
+        ON program_teachers(teacher_id, program_id);
+
+        CREATE INDEX IF NOT EXISTS idx_submissions_program_id
+        ON submissions(program_id, student_number, student_name);
+
+        CREATE INDEX IF NOT EXISTS idx_submissions_program_status
+        ON submissions(program_id, status);
+
+        CREATE INDEX IF NOT EXISTS idx_submissions_program_selected
+        ON submissions(program_id, teacher_selected);
+
+        CREATE INDEX IF NOT EXISTS idx_student_drafts_program_updated_at
+        ON student_drafts(program_id, updated_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_sessions_role_teacher_id
+        ON sessions(role, teacher_id);
+
+        CREATE INDEX IF NOT EXISTS idx_sessions_role_program_id
+        ON sessions(role, program_id);
+
+        CREATE INDEX IF NOT EXISTS idx_sessions_expires_at
+        ON sessions(expires_at);
+        """
+    )
     db.commit()
 
 
@@ -1927,11 +1991,13 @@ def get_program_with_teacher(db: sqlite3.Connection, program_id: int) -> dict[st
         """
         SELECT
             p.*,
-            (
-                SELECT COUNT(*) FROM submissions s
-                WHERE s.program_id = p.id
-            ) AS submission_count
+            COALESCE(stats.submission_count, 0) AS submission_count
         FROM programs p
+        LEFT JOIN (
+            SELECT program_id, COUNT(*) AS submission_count
+            FROM submissions
+            GROUP BY program_id
+        ) stats ON stats.program_id = p.id
         WHERE p.id = ?
         """,
         (program_id,),
@@ -1965,6 +2031,35 @@ def get_program_questions(program: sqlite3.Row | dict[str, Any]) -> list[str]:
     return [field["label"] for field in get_program_form_schema(program)["flat_fields"]]
 
 
+def normalize_submission_row(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    item = dict(row)
+    answers = parse_json(item.get("answers_json"), [])
+    normalized_answers = []
+    for index, answer in enumerate(answers, start=1):
+        if isinstance(answer, dict):
+            normalized_answers.append(
+                {
+                    "field_id": answer.get("field_id") or f"answer_{index - 1}",
+                    "question": answer.get("question") or answer.get("label") or f"臾명빆 {index}",
+                    "answer": answer.get("answer", ""),
+                    "section_title": answer.get("section_title", ""),
+                }
+            )
+        else:
+            normalized_answers.append(
+                {
+                    "field_id": f"answer_{index - 1}",
+                    "question": f"臾명빆 {index}",
+                    "answer": str(answer),
+                    "section_title": "",
+                }
+            )
+    item["answers"] = normalized_answers
+    item["final_evaluation"] = final_evaluation(row)
+    item["result_summary"] = submission_result_summary(item)
+    return item
+
+
 def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list[dict[str, Any]]:
     rows = db.execute(
         """
@@ -1974,6 +2069,7 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
         """,
         (program_id,),
     ).fetchall()
+    return [normalize_submission_row(row) for row in rows]
     submissions = []
     for row in rows:
         item = dict(row)
@@ -2003,6 +2099,24 @@ def get_submissions_for_program(db: sqlite3.Connection, program_id: int) -> list
         item["result_summary"] = submission_result_summary(item)
         submissions.append(item)
     return submissions
+
+
+def get_submission_detail(
+    db: sqlite3.Connection,
+    program_id: int,
+    submission_id: int,
+) -> dict[str, Any] | None:
+    row = db.execute(
+        """
+        SELECT *
+        FROM submissions
+        WHERE program_id = ? AND id = ?
+        """,
+        (program_id, submission_id),
+    ).fetchone()
+    if not row:
+        return None
+    return normalize_submission_row(row)
 
 
 def get_answer_map_from_entries(entries: Any) -> dict[str, str]:
@@ -2587,12 +2701,15 @@ def query_teacher_assignments(db: sqlite3.Connection) -> list[sqlite3.Row]:
             p.school_level,
             p.program_code,
             p.status,
-            (
-                SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
-            ) AS submission_count
+            COALESCE(stats.submission_count, 0) AS submission_count
         FROM teachers t
         LEFT JOIN program_teachers pt ON pt.teacher_id = t.id
         LEFT JOIN programs p ON p.id = pt.program_id
+        LEFT JOIN (
+            SELECT program_id, COUNT(*) AS submission_count
+            FROM submissions
+            GROUP BY program_id
+        ) stats ON stats.program_id = p.id
         ORDER BY t.created_at DESC, p.year DESC, p.semester DESC, p.created_at DESC
         """
     ).fetchall()
@@ -2602,15 +2719,22 @@ def query_programs(db: sqlite3.Connection, filters: dict[str, str]) -> list[dict
     sql = """
         SELECT
             p.*,
-            (
-                SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
-            ) AS submission_count,
-            (
-                SELECT COUNT(*) FROM submissions s
-                WHERE s.program_id = p.id
-                AND TRIM(COALESCE(s.teacher_evaluation, '')) <> ''
-            ) AS reviewed_count
+            COALESCE(stats.submission_count, 0) AS submission_count,
+            COALESCE(stats.reviewed_count, 0) AS reviewed_count
         FROM programs p
+        LEFT JOIN (
+            SELECT
+                program_id,
+                COUNT(*) AS submission_count,
+                SUM(
+                    CASE
+                        WHEN TRIM(COALESCE(teacher_evaluation, '')) <> '' THEN 1
+                        ELSE 0
+                    END
+                ) AS reviewed_count
+            FROM submissions
+            GROUP BY program_id
+        ) stats ON stats.program_id = p.id
         WHERE 1 = 1
     """
     params: list[Any] = []
@@ -2797,10 +2921,15 @@ def serve_static(path: str) -> Response:
     if not str(candidate).startswith(str(STATIC_DIR.resolve())) or not candidate.exists():
         return text_response("Not Found", status="404 Not Found")
     content_type, _ = mimetypes.guess_type(candidate.name)
+    last_modified = formatdate(candidate.stat().st_mtime, usegmt=True)
     return Response(
         body=candidate.read_bytes(),
         status="200 OK",
-        headers=[("Content-Type", content_type or "application/octet-stream")],
+        headers=[
+            ("Content-Type", content_type or "application/octet-stream"),
+            ("Cache-Control", "public, max-age=3600"),
+            ("Last-Modified", last_modified),
+        ],
     )
 
 
@@ -2972,19 +3101,7 @@ def admin_dashboard(request: Request) -> Response:
 
     if active_admin_panel in {"camp-create"}:
         teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
-        template_rows = request.db.execute(
-            """
-            SELECT
-                pt.*,
-                (
-                    SELECT COUNT(*) FROM programs p
-                    WHERE p.template_id = pt.id
-                ) AS usage_count
-            FROM program_templates pt
-            ORDER BY pt.created_at DESC
-            """
-        ).fetchall()
-        templates = [get_template_card(row) for row in template_rows]
+        templates = query_template_cards(request.db)
         camp_programs = query_programs(
             request.db,
             {
@@ -3015,19 +3132,7 @@ def admin_dashboard(request: Request) -> Response:
     elif active_admin_panel == "teacher-irregular":
         teacher_assignments = query_teacher_assignments(request.db)
     elif active_admin_panel in {"template-create", "template-manage"}:
-        template_rows = request.db.execute(
-            """
-            SELECT
-                pt.*,
-                (
-                    SELECT COUNT(*) FROM programs p
-                    WHERE p.template_id = pt.id
-                ) AS usage_count
-            FROM program_templates pt
-            ORDER BY pt.created_at DESC
-            """
-        ).fetchall()
-        templates = [get_template_card(row) for row in template_rows]
+        templates = query_template_cards(request.db)
 
     return render_template(
         request,
@@ -3618,10 +3723,13 @@ def teacher_dashboard(request: Request) -> Response:
         """
         SELECT
             p.*,
-            (
-                SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id
-            ) AS submission_count
+            COALESCE(stats.submission_count, 0) AS submission_count
         FROM programs p
+        LEFT JOIN (
+            SELECT program_id, COUNT(*) AS submission_count
+            FROM submissions
+            GROUP BY program_id
+        ) stats ON stats.program_id = p.id
         WHERE EXISTS (
             SELECT 1 FROM program_teachers pt
             WHERE pt.program_id = p.id AND pt.teacher_id = ?
@@ -3738,6 +3846,30 @@ def teacher_submission_detail(request: Request, program_id: str, submission_id: 
     teacher = get_current_teacher(request)
     if not teacher:
         return redirect_response("/logout")
+    program_id_int = int(program_id)
+    submission_id_int = int(submission_id)
+    program = get_program_with_teacher(request.db, program_id_int)
+    if not program or not teacher_has_program_access(request.db, teacher["id"], program_id_int):
+        return text_response("?묎렐 沅뚰븳???놁뒿?덈떎.", status="403 Forbidden")
+    submission = get_submission_detail(request.db, program_id_int, submission_id_int)
+    if not submission:
+        return text_response("?숈깮 ?쒖텧 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.", status="404 Not Found")
+    ai_regeneration_count = int(submission.get("ai_regeneration_count") or 0)
+    return render_template(
+        request,
+        "teacher_submission_detail.html",
+        teacher=teacher,
+        program=program,
+        submission=submission,
+        is_locked=program["status"] in {"teacher_submitted", "completed"},
+        ai_enabled=openai_is_configured(),
+        can_regenerate_ai=ai_regeneration_count < 1,
+        ai_regeneration_count=ai_regeneration_count,
+        shell_overrides={
+            "nav_groups": build_teacher_nav_groups(program_id_int),
+            "active_key": "teacher-reviews",
+        },
+    )
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
@@ -3771,6 +3903,42 @@ def teacher_regenerate_ai_suggestion(request: Request, program_id: str, submissi
     teacher = get_current_teacher(request)
     if not teacher:
         return redirect_response("/logout")
+    program_id_int = int(program_id)
+    submission_id_int = int(submission_id)
+    program = get_program_with_teacher(request.db, program_id_int)
+    if not program or not teacher_has_program_access(request.db, teacher["id"], program_id_int):
+        return text_response("?묎렐 沅뚰븳???놁뒿?덈떎.", status="403 Forbidden")
+
+    row = request.db.execute(
+        "SELECT * FROM submissions WHERE id = ? AND program_id = ?",
+        (submission_id, program_id),
+    ).fetchone()
+    if not row:
+        set_flash(request.db, request.session["id"], "?숈깮 ?쒖텧 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews")
+
+    target = get_submission_detail(request.db, program_id_int, submission_id_int)
+    if not target:
+        set_flash(request.db, request.session["id"], "?숈깮 ?쒖텧 ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews")
+
+    if int(target.get("ai_regeneration_count") or 0) >= 1:
+        set_flash(request.db, request.session["id"], "AI ?덉떆 ?ㅼ떆 ?앹꽦? 媛쒕퀎 硫대떞吏??1踰덈쭔 媛?ν빀?덈떎.", "error")
+        return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
+
+    ensure_ai_suggestion_for_submission(request.db, program, target, force=True)
+    if target.get("ai_error"):
+        set_flash(request.db, request.session["id"], f"?됯? ?댁슜 ?덉떆 ?앹꽦???ㅽ뙣?덉뒿?덈떎. {target['ai_error']}", "error")
+    else:
+        set_flash(request.db, request.session["id"], "?됯? ?댁슜 ?덉떆瑜??ㅼ떆 ?앹꽦?덉뒿?덈떎.", "success")
+    if not target.get("ai_error"):
+        request.db.execute(
+            "UPDATE submissions SET ai_regeneration_count = 1 WHERE id = ? AND program_id = ?",
+            (submission_id, program_id),
+        )
+        request.db.commit()
+        target["ai_regeneration_count"] = 1
+    return redirect_response(f"/teacher/programs/{program_id}/reviews/{submission_id}")
     program = get_program_with_teacher(request.db, int(program_id))
     if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
