@@ -2084,20 +2084,39 @@ def get_program_review_rows(db: sqlite3.Connection, program_id: int) -> list[dic
     rows: list[dict[str, Any]] = []
     existing_keys: set[tuple[str, str]] = set()
 
-    for submission in get_submissions_for_program(db, program_id):
-        key = (str(submission.get("student_number") or "").strip(), str(submission.get("student_name") or "").strip())
+    submission_rows = db.execute(
+        """
+        SELECT
+            id,
+            student_name,
+            student_number,
+            desired_major,
+            status,
+            answers_json,
+            teacher_updated_at,
+            student_submitted_at,
+            teacher_selected
+        FROM submissions
+        WHERE program_id = ?
+        ORDER BY student_number ASC, student_name ASC
+        """,
+        (program_id,),
+    ).fetchall()
+
+    for submission in submission_rows:
+        key = (str(submission["student_number"] or "").strip(), str(submission["student_name"] or "").strip())
         if key != ("", ""):
             existing_keys.add(key)
         rows.append(
             build_submission_review_meta(
-                student_name=submission.get("student_name", ""),
-                student_number=submission.get("student_number", ""),
-                desired_major=submission.get("desired_major", ""),
-                status=submission.get("status", "student_submitted"),
-                answers=submission.get("answers", []),
-                updated_at=submission.get("teacher_updated_at") or submission.get("student_submitted_at") or "",
+                student_name=submission["student_name"] or "",
+                student_number=submission["student_number"] or "",
+                desired_major=submission["desired_major"] or "",
+                status=submission["status"] or "student_submitted",
+                answers=parse_json(submission["answers_json"], []),
+                updated_at=submission["teacher_updated_at"] or submission["student_submitted_at"] or "",
                 submission_id=int(submission["id"]),
-                selected_for_submit=bool(submission.get("teacher_selected")),
+                selected_for_submit=bool(submission["teacher_selected"]),
             )
         )
 
