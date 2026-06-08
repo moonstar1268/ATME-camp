@@ -5,7 +5,7 @@
 {% block workspace_actions %}
   <div class="badge-row">
     <span class="status-badge">프로그램 코드 {{ program.program_code }}</span>
-    <a href="/teacher/programs/{{ program.id }}/reviews" class="secondary-button compact-button">개별 리스트</a>
+    <a href="/teacher/programs/{{ program.id }}/reviews" class="secondary-button compact-button">뒤로가기</a>
     <a href="/teacher/programs/{{ program.id }}" class="secondary-button compact-button">제출현황</a>
   </div>
 {% endblock %}
@@ -55,7 +55,7 @@
         <div>
           <p class="section-kicker">STUDENT REVIEW</p>
           <h2>{{ submission.student_name }} 학생 제출 내용</h2>
-          <p class="card-description">학생 답변과 AI 예시를 참고해 생활기록부용 최종 평가 문장을 작성해 주세요.</p>
+          <p class="card-description">학생 응답과 AI 예시를 참고해 생활기록부용 최종 평가 문장을 작성해 주세요.</p>
         </div>
       </div>
 
@@ -76,7 +76,7 @@
           <div>
             <p class="section-kicker">AI SUGGESTION</p>
             <h3>평가 내용 예시</h3>
-            <p class="card-description">학생 작성 내용을 기반으로 GPT 프롬프트를 거쳐 생성한 초안입니다.</p>
+            <p class="card-description">학생 작성 내용을 바탕으로 GPT 프롬프트를 거쳐 생성한 초안입니다.</p>
           </div>
           <div class="row-actions">
             {% if not is_locked %}
@@ -100,7 +100,7 @@
         </div>
 
         {% if not can_regenerate_ai %}
-          <p class="form-hint compact-top">AI 예시 다시 생성은 개별 면담지당 1회만 가능합니다. 이전 생성 기록은 그대로 유지됩니다.</p>
+          <p class="form-hint compact-top">AI 예시 다시 생성은 개별 면담지당 1번만 가능합니다. 이전 생성 기록은 그대로 유지됩니다.</p>
         {% endif %}
 
         {% if submission.ai_suggestion %}
@@ -117,12 +117,12 @@
       <form action="/teacher/programs/{{ program.id }}/submissions/{{ submission.id }}" method="post" class="stack-form compact-top">
         <div class="form-grid">
           <div class="field-span-2 evaluation-guide-card">
-            <span class="evaluation-guide-title">학생 평가는 아래 요소들이 자연스럽게 연결되도록 서술해 주세요.</span>
+            <span class="evaluation-guide-title">학생 평가에는 아래 요소들이 자연스럽게 연결되도록 서술해 주세요.</span>
             <ul class="guideline-list">
-              <li>학생의 희망 진로 및 관심 분야와 연계한 탐구 참여 동기</li>
-              <li>교과에서 학습한 개념 및 지식을 탐구에 활용한 방법</li>
-              <li>탐구 수행 과정과 학생이 추가로 확장한 내용</li>
-              <li>수행한 탐구와 연속성이 있는 후속 연구계획</li>
+              <li>학생의 희망 진로 및 관심 분야와 연결된 탐구 참여 동기</li>
+              <li>교과에서 학습한 개념과 지식을 탐구에 활용한 방식</li>
+              <li>탐구 수행 과정에서 드러난 학생의 분석, 정리, 확장 시도</li>
+              <li>후속 탐구 또는 발전 가능성으로 이어지는 종합 평가</li>
             </ul>
           </div>
           <div class="form-field field-span-2 char-counter-field" data-char-counter-root data-char-min="600" data-char-max="700">
@@ -137,13 +137,14 @@
             >{{ submission.teacher_evaluation }}</textarea>
             <div class="char-counter-meta">
               <span>현재 글자 수(공백 포함): <strong data-char-count-current>{{ (submission.teacher_evaluation or "")|length }}자</strong></span>
-              <span>권장 글자 수: 600자~700자</span>
+              <span>권장 글자 수: 600자 ~ 700자</span>
             </div>
           </div>
         </div>
 
         {% if not is_locked %}
-          <div class="page-actions align-right">
+          <div class="page-actions">
+            <a href="/teacher/programs/{{ program.id }}/reviews" class="secondary-button">뒤로가기</a>
             <button type="submit" class="primary-button teacher">학생 평가 저장</button>
           </div>
         {% endif %}
