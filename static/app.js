@@ -1800,6 +1800,98 @@ function initStudentCurriculumSelectors() {
         String(item.curriculumName || "") === String(subject?.curriculumName || ""),
     );
 
+  const upsertCurriculumSubject = (subject, units, options = {}) => {
+    if (!subject) {
+      return true;
+    }
+
+    const { enforceLimit = false } = options;
+    const existingIndex = findSelectedSubjectIndex(subject);
+    const nextUnits = cloneUnits(units || []);
+
+    if (!nextUnits.length) {
+      if (existingIndex !== -1) {
+        curriculumState.selectedSubjects.splice(existingIndex, 1);
+      }
+      return true;
+    }
+
+    if (existingIndex === -1 && enforceLimit && curriculumState.selectedSubjects.length >= 2) {
+      return false;
+    }
+
+    const payload = {
+      curriculumId: subject.curriculumId || "",
+      curriculumName: subject.curriculumName || "",
+      units: nextUnits,
+    };
+
+    if (existingIndex === -1) {
+      curriculumState.selectedSubjects.push(payload);
+    } else {
+      curriculumState.selectedSubjects.splice(existingIndex, 1, payload);
+    }
+    return true;
+  };
+
+  const buildCurriculumPreviewSubjects = () => {
+    const preview = curriculumState.selectedSubjects.map((subject) => ({
+      curriculumId: subject.curriculumId || "",
+      curriculumName: subject.curriculumName || "",
+      units: cloneUnits(subject.units || []),
+    }));
+
+    if (!curriculumState.subject || !curriculumState.selectedSubUnits.length) {
+      return preview;
+    }
+
+    const currentDraft = {
+      curriculumId: curriculumState.subject.curriculumId || "",
+      curriculumName: curriculumState.subject.curriculumName || "",
+      units: cloneUnits(curriculumState.selectedSubUnits),
+    };
+    const existingIndex = preview.findIndex(
+      (item) =>
+        String(item.curriculumId || "") === String(currentDraft.curriculumId || "") ||
+        String(item.curriculumName || "") === String(currentDraft.curriculumName || ""),
+    );
+
+    if (existingIndex === -1) {
+      preview.push(currentDraft);
+    } else {
+      preview.splice(existingIndex, 1, currentDraft);
+    }
+
+    return preview;
+  };
+
+  const removeCurriculumPreviewUnit = (subject, unit) => {
+    const subjectIndex = findSelectedSubjectIndex(subject);
+    if (subjectIndex !== -1) {
+      const nextUnits = (curriculumState.selectedSubjects[subjectIndex].units || []).filter(
+        (item) => String(item.id || "") !== String(unit.id || ""),
+      );
+      if (nextUnits.length) {
+        curriculumState.selectedSubjects.splice(subjectIndex, 1, {
+          ...curriculumState.selectedSubjects[subjectIndex],
+          units: cloneUnits(nextUnits),
+        });
+      } else {
+        curriculumState.selectedSubjects.splice(subjectIndex, 1);
+      }
+    }
+
+    if (
+      curriculumState.subject &&
+      (String(curriculumState.subject.curriculumId || "") === String(subject.curriculumId || "") ||
+        String(curriculumState.subject.curriculumName || "") === String(subject.curriculumName || ""))
+    ) {
+      curriculumState.selectedSubUnits = curriculumState.selectedSubUnits.filter(
+        (item) => String(item.id || "") !== String(unit.id || ""),
+      );
+    }
+  };
+
   const parseStoredUnits = (subjectName, rawValue, prefix) =>
     normalizeKeywords(rawValue).map((entry, index) => {
       let cleaned = entry.trim();
@@ -1961,23 +2053,25 @@ function initStudentCurriculumSelectors() {
       button.classList.toggle("is-selected", isSelected);
     });
 
+    const previewSubjects = buildCurriculumPreviewSubjects();
     selectedList.innerHTML = "";
-    if (curriculumState.selectedSubUnits.length) {
-      curriculumState.selectedSubUnits.forEach((item, index) => {
-        selectedList.appendChild(
-          createSummaryChip(`${curriculumState.subject?.curriculumName || ""} - ${item.groupName} - ${item.name}`, () => {
-            curriculumState.selectedSubUnits.splice(index, 1);
-            renderCurriculumModalSelection();
-          }),
-        );
+    if (previewSubjects.length) {
+      previewSubjects.forEach((subject) => {
+        (subject.units || []).forEach((item) => {
+          selectedList.appendChild(
+            createSummaryChip(`${subject.curriculumName || ""} - ${item.groupName} - ${item.name}`, () => {
+              removeCurriculumPreviewUnit(subject, item);
+              renderCurriculumModalSelection();
+            }),
+          );
+        });
       });
     } else {
       const empty = document.createElement("p");
       empty.className = "student-selection-empty";
-      empty.textContent = "선택한 소단원이 없습니다.";
+      empty.textContent = "\uc120\ud0dd\ud55c \uc18c\ub2e8\uc6d0\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.";
       selectedList.appendChild(empty);
     }
-
     confirmButton.disabled = !(curriculumState.subject && curriculumState.selectedSubUnits.length);
 
     if (!curriculumState.subject) {
@@ -2115,22 +2209,9 @@ function initStudentCurriculumSelectors() {
           return;
         }
 
-        const existingIndex = findSelectedSubjectIndex(curriculumState.subject);
-        if (existingIndex === -1 && curriculumState.selectedSubjects.length >= 2) {
-          window.alert("연계 교과는 최대 2개까지 선택할 수 있습니다.");
+        if (!upsertCurriculumSubject(curriculumState.subject, curriculumState.selectedSubUnits, { enforceLimit: true })) {
+          window.alert("\uc5f0\uacc4 \uad50\uacfc\ub294 \ucd5c\ub300 2\uac1c\uae4c\uc9c0 \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.");
           return;
-        }
-
-        const payload = {
-          curriculumId: curriculumState.subject.curriculumId || "",
-          curriculumName: curriculumState.subject.curriculumName || "",
-          units: cloneUnits(curriculumState.selectedSubUnits),
-        };
-
-        if (existingIndex === -1) {
-          curriculumState.selectedSubjects.push(payload);
-        } else {
-          curriculumState.selectedSubjects.splice(existingIndex, 1, payload);
         }
 
         syncCurriculumHiddenInputs();
@@ -2164,6 +2245,27 @@ function initStudentCurriculumSelectors() {
           label.textContent = `[${groupName}]`;
           const grid = document.createElement("div");
           grid.className = "student-selection-option-grid";
+          grid.addEventListener("click", (event) => {
+            const nextButton = event.target.closest(".student-selection-option-button");
+            if (!nextButton) {
+              return;
+            }
+            const isSwitchingSubject =
+              curriculumState.subject &&
+              (String(curriculumState.subject.curriculumId || "") !== String(nextButton.dataset.curriculumId || "") ||
+                String(curriculumState.subject.curriculumName || "") !== String(nextButton.dataset.curriculumName || ""));
+            if (!isSwitchingSubject || !curriculumState.selectedSubUnits.length) {
+              return;
+            }
+            if (!upsertCurriculumSubject(curriculumState.subject, curriculumState.selectedSubUnits, { enforceLimit: true })) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (typeof event.stopImmediatePropagation === "function") {
+                event.stopImmediatePropagation();
+              }
+              window.alert("\uc5f0\uacc4 \uad50\uacfc\ub294 \ucd5c\ub300 2\uac1c\uae4c\uc9c0 \uc120\ud0dd\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.");
+            }
+          }, true);
 
           items.forEach((item) => {
             const button = document.createElement("button");

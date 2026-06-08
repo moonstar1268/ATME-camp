@@ -4255,16 +4255,27 @@ def student_submit(request: Request) -> Response:
 
     answers, answers_map = collect_student_answers(request, fields)
 
-    has_missing_required = any(
-        field.get("required", True) and not answers_map.get(field["id"], "").strip()
-        for field in fields
-    )
-    if not student_number or not student_name or not desired_major or has_missing_required:
+    missing_labels = []
+    if not student_number:
+        missing_labels.append("\ud559\ubc88")
+    if not desired_major:
+        missing_labels.append("\ud76c\ub9dd\uc804\uacf5")
+    for field in fields:
+        if field.get("required", True) and not answers_map.get(field["id"], "").strip():
+            missing_labels.append(field.get("label") or field["id"])
+
+    if missing_labels:
+        deduped_missing_labels = []
+        seen_missing_labels = set()
+        for label in missing_labels:
+            if label not in seen_missing_labels:
+                seen_missing_labels.add(label)
+                deduped_missing_labels.append(label)
         return render_student_form_page(
             request,
             program=program,
             is_locked=False,
-            error="학번, 희망전공, 질문 응답을 모두 입력해 주세요.",
+            error="\ub2e4\uc74c \ud56d\ubaa9\uc744 \uc785\ub825\ud574 \uc8fc\uc138\uc694: " + ", ".join(deduped_missing_labels),
             form_data={
                 "student_number": student_number,
                 "student_name": student_name,
