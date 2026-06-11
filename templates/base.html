@@ -18,8 +18,9 @@
             href="{% if request.session.role == 'admin' %}/admin{% elif request.session.role == 'teacher' %}/teacher{% else %}/student/start{% endif %}"
             class="sidebar-brand"
           >
-            <span class="sidebar-brand-kicker">AFE CAMP</span>
+            <span class="sidebar-brand-kicker">AFE CAMP PLATFORM</span>
             <strong>산출물 관리 시스템</strong>
+            <span class="sidebar-brand-copy">학생 질문지 작성부터 강사 검토, 관리자 취합과 다운로드까지 한 곳에서 운영합니다.</span>
           </a>
 
           <div class="sidebar-role-chip">{{ shell.role_label }}</div>
@@ -28,11 +29,13 @@
             {% for group in shell.nav_groups %}
               <div class="sidebar-group">
                 <p class="sidebar-group-label">{{ group.label }}</p>
-                {% for item in group["items"] %}
-                  <a href="{{ item.href }}" class="sidebar-link {% if item.is_active %}is-active{% endif %}">
-                    {{ item.label }}
-                  </a>
-                {% endfor %}
+                <div class="sidebar-group-links">
+                  {% for item in group["items"] %}
+                    <a href="{{ item.href }}" class="sidebar-link {% if item.is_active %}is-active{% endif %}">
+                      {{ item.label }}
+                    </a>
+                  {% endfor %}
+                </div>
               </div>
             {% endfor %}
           </nav>
@@ -73,8 +76,9 @@
       <div class="auth-page-shell">
         <header class="auth-topbar">
           <a href="/" class="auth-brand">
-            <span class="sidebar-brand-kicker">AFE CAMP</span>
+            <span class="sidebar-brand-kicker">AFE CAMP PLATFORM</span>
             <strong>산출물 관리 시스템</strong>
+            <span class="sidebar-brand-copy">학생, 강사, 관리자가 같은 데이터 흐름 위에서 협업하는 캠프 운영 시스템입니다.</span>
           </a>
         </header>
 
