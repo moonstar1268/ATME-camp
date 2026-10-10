@@ -194,7 +194,7 @@
       <div class="admin-surface-card admin-list-shell">
         <div class="admin-surface-badge">프로그램 리스트</div>
         <div class="panel-copy-stack compact-copy">
-          <p class="panel-description">개설된 캠프의 현재 상태를 확인하고, 상세·다운로드·삭제 작업을 빠르게 처리할 수 있습니다.</p>
+          <p class="panel-description">캠프를 새로 개설하지 않고 배정 강사를 변경할 수 있습니다. 캠프 코드와 학생 작성 내용은 그대로 유지됩니다.</p>
         </div>
 
         <div class="data-table-card compact-top" data-table-root data-page-size="10">
@@ -223,6 +223,12 @@
                       <div class="table-primary">
                         <strong>{{ program.title }}</strong>
                         <small>{{ program.teacher_name }}</small>
+                        <button type="button" class="ghost-button-inline camp-teacher-edit"
+                          data-camp-teachers-open
+                          data-program-id="{{ program.id }}"
+                          data-program-title="{{ program.title }}"
+                          data-teacher-ids="{{ program.assigned_teachers | map(attribute='id') | join(',') }}"
+                          aria-label="{{ program.title }} 배정 강사 변경">배정 강사 변경</button>
                       </div>
                     </td>
                     <td>{{ program.school_name }}</td>
@@ -260,6 +266,37 @@
         </div>
       </div>
     </section>
+    <dialog class="app-modal camp-teachers-modal" id="camp-teachers-modal" aria-labelledby="camp-teachers-title">
+      <form method="post" class="modal-panel" data-camp-teachers-form>
+        <div class="camp-teachers-header">
+          <div>
+            <h2 id="camp-teachers-title">배정 강사 변경</h2>
+            <p data-camp-teachers-title></p>
+          </div>
+          <button type="button" class="student-selection-modal-close" data-camp-teachers-close aria-label="닫기">×</button>
+        </div>
+        <p class="field-help">체크하면 추가, 해제하면 배정 취소됩니다. 강사 계정과 학생 자료는 삭제되지 않습니다.</p>
+        <label class="camp-teachers-search">강사 검색
+          <input type="search" placeholder="강사명 / ID / 대학 검색" data-camp-teachers-search />
+        </label>
+        <input type="hidden" name="teacher_ids" />
+        <input type="hidden" name="previous_teacher_ids" />
+        <div class="camp-teachers-options">
+          {% for teacher in teachers %}
+            <label class="camp-teacher-option" data-camp-teacher-option>
+              <input type="checkbox" value="{{ teacher.id }}" data-camp-teacher-check />
+              <span><strong>{{ teacher.name }}</strong><small>{{ teacher.username }}{% if teacher.university %} · {{ teacher.university }}{% endif %}</small></span>
+            </label>
+          {% endfor %}
+          <p class="field-help" data-camp-teachers-empty hidden>검색 결과가 없습니다.</p>
+        </div>
+        <p class="field-help" data-camp-teachers-status aria-live="polite"></p>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" data-camp-teachers-close>취소</button>
+          <button type="submit" class="primary-button" data-camp-teachers-save>변경 저장</button>
+        </div>
+      </form>
+    </dialog>
   {% elif panel == "teacher-create" %}
     <section class="page-section admin-panel-page">
       <div class="admin-surface-card">

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}AFE 캠프 산출물 관리 시스템{% endblock %}</title>
-    <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/app.css?v=20261010-4" />
   </head>
   <body class="{% block body_class %}{% endblock %} role-{{ shell.role or 'guest' }}">
     {% set page_content %}
@@ -91,6 +91,6 @@
       </div>
     {% endif %}
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20261010-4"></script>
   </body>
 </html>

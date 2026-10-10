@@ -3114,6 +3114,9 @@ def admin_dashboard(request: Request) -> Response:
             },
         )
     elif active_admin_panel == "camp-list":
+        teachers = request.db.execute(
+            "SELECT id, name, username, university FROM teachers ORDER BY name, id"
+        ).fetchall()
         camp_programs = query_programs(
             request.db,
             {
@@ -3373,6 +3376,59 @@ def admin_remove_teacher_from_program(request: Request, teacher_id: str, program
         "success",
     )
     return redirect_response(admin_panel_path("teacher-list"))
+
+
+@route("POST", r"/admin/programs/(?P<program_id>\d+)/teachers")
+def admin_update_program_teachers(request: Request, program_id: str) -> Response:
+    auth = require_role(request, "admin")
+    if auth:
+        return auth
+
+    def finish(message: str, tone: str = "error") -> Response:
+        set_flash(request.db, request.session["id"], message, tone)
+        return redirect_response(admin_panel_path("camp-list"))
+
+    raw_ids = request.form.get("teacher_ids", "").strip()
+    if not re.fullmatch(r"[1-9]\d*(,[1-9]\d*)*", raw_ids):
+        return finish("강사를 한 명 이상 선택해 주세요. 마지막 강사는 새 강사를 선택한 뒤 교체할 수 있습니다.")
+    teacher_ids = sorted({int(value) for value in raw_ids.split(",")})
+    # Serialize replacements and reject stale dialogs rather than silently losing changes.
+    lock = " FOR UPDATE" if request.db.dialect == "postgres" else ""
+    program = request.db.execute(
+        "SELECT id, title, teacher_id FROM programs WHERE id = ?" + lock, (program_id,)
+    ).fetchone()
+    if not program:
+        return finish("캠프를 찾을 수 없습니다. 목록을 새로 확인해 주세요.")
+    current_ids = {
+        row["teacher_id"] for row in request.db.execute(
+            "SELECT teacher_id FROM program_teachers WHERE program_id = ?", (program_id,)
+        ).fetchall()
+    }
+    expected = request.form.get("previous_teacher_ids", "").split(",")
+    if {str(value) for value in current_ids} != {value for value in expected if value}:
+        return finish("다른 작업에서 강사 배정이 변경되었습니다. 현재 목록을 확인한 뒤 다시 변경해 주세요.")
+    placeholders = ",".join("?" for _ in teacher_ids)
+    found = request.db.execute(
+        f"SELECT id FROM teachers WHERE id IN ({placeholders})", teacher_ids
+    ).fetchall()
+    if len(found) != len(teacher_ids):
+        return finish("선택한 강사 중 삭제된 계정이 있습니다. 목록을 확인한 뒤 다시 선택해 주세요.")
+
+    for teacher_id in set(teacher_ids) - current_ids:
+        request.db.execute(
+            "INSERT INTO program_teachers (program_id, teacher_id, assigned_at) VALUES (?, ?, ?)",
+            (program_id, teacher_id, now_iso()),
+        )
+    if program["teacher_id"] not in teacher_ids:
+        request.db.execute(
+            "UPDATE programs SET teacher_id = ? WHERE id = ?", (teacher_ids[0], program_id)
+        )
+    request.db.execute(
+        f"DELETE FROM program_teachers WHERE program_id = ? AND teacher_id NOT IN ({placeholders})",
+        [program_id, *teacher_ids],
+    )
+    request.db.commit()
+    return finish(f"{program['title']}의 배정 강사를 변경했습니다. 캠프 코드와 학생 작성 내용은 유지됩니다.", "success")
 
 
 @route("POST", r"/admin/templates")

@@ -203,6 +203,7 @@ code {
 
 .workspace-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   min-width: 0;
 }
@@ -243,6 +244,7 @@ code {
 }
 
 .workspace-content {
+  min-width: 0;
   padding: 24px 28px 36px;
 }
 
@@ -1475,7 +1477,11 @@ button:disabled {
 
 .student-selection-modal-body {
   display: grid;
-  gap: 20px;
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .student-selection-modal-section {
@@ -1643,6 +1649,8 @@ button:disabled {
 .student-selection-checkbox-row input {
   width: 20px;
   height: 20px;
+  min-height: 20px;
+  flex: 0 0 20px;
   accent-color: var(--primary);
 }
 
@@ -2411,6 +2419,10 @@ button:disabled {
   background: rgba(15, 23, 42, 0.44);
 }
 
+body:has(dialog[open]) {
+  overflow: hidden;
+}
+
 .modal-panel {
   padding: 28px;
   border-radius: 24px;
@@ -3021,7 +3033,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 20px;
   background: #ffffff;
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .app-table {
@@ -3339,16 +3351,40 @@ textarea:focus {
   background: #f8fbff;
 }
 
+.app-modal.student-selection-modal {
+  width: min(1040px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
 .student-selection-modal-panel {
-  width: min(1120px, calc(100vw - 48px));
-  padding: 34px 34px 28px;
-  border-radius: 30px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  max-height: calc(100dvh - 32px);
+  padding: 20px;
+  border-radius: 24px;
   background: #ffffff;
   box-shadow: var(--shadow-lg);
 }
 
+.student-selection-modal-header,
+.student-selection-modal-actions {
+  flex-shrink: 0;
+}
+
+.student-selection-modal-actions {
+  padding-top: 16px;
+}
+
+.student-selection-modal-footer {
+  padding-top: 0;
+}
+
 .student-selection-modal-header h3 {
-  font-size: clamp(1.8rem, 2.6vw, 2.35rem);
+  font-size: clamp(1.25rem, 2.2vw, 1.6rem);
   letter-spacing: -0.03em;
 }
 
@@ -3363,10 +3399,11 @@ textarea:focus {
 }
 
 .student-selection-modal-section {
-  gap: 16px;
-  padding: 24px;
+  min-width: 0;
+  gap: 14px;
+  padding: 18px;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: 16px;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px #f7f9fc;
 }
@@ -3381,29 +3418,34 @@ textarea:focus {
 }
 
 .student-selection-modal-scroll {
-  max-height: 320px;
+  min-width: 0;
+  max-height: 300px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 4px;
 }
 
 .student-selection-modal-scroll-tall {
-  min-height: 320px;
-  max-height: 380px;
+  min-height: 180px;
+  max-height: 300px;
 }
 
 .student-selection-option-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
 }
 
 .student-selection-option-button {
-  min-width: 180px;
-  min-height: 56px;
+  min-width: 0;
+  min-height: 50px;
   padding: 12px 16px;
   border-color: var(--border);
-  border-radius: 16px;
+  border-radius: 10px;
   color: #49566b;
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 0.94rem;
+  font-weight: 600;
   line-height: 1.45;
   white-space: normal;
   word-break: keep-all;
@@ -3441,7 +3483,7 @@ textarea:focus {
 
 .student-selection-checkbox-row {
   min-height: 54px;
-  padding: 0 18px;
+  padding: 12px 16px;
   font-size: 1rem;
   color: #44566f;
 }
@@ -3455,6 +3497,98 @@ textarea:focus {
   border-radius: 999px;
   background: #f5f7fb;
   color: #46566d;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.student-selection-chip span {
+  min-width: 0;
+}
+
+.student-selection-chip button {
+  flex-shrink: 0;
+}
+
+.student-selection-subject-groups {
+  display: block;
+  min-width: 0;
+}
+
+.student-selection-option-button[hidden],
+.student-selection-option-group[hidden],
+.camp-teacher-option[hidden] {
+  display: none;
+}
+
+.student-selection-modal-section-head {
+  flex-wrap: wrap;
+}
+
+.camp-teacher-edit {
+  justify-self: start;
+  margin-top: 6px;
+}
+
+.camp-teachers-modal .modal-panel {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.camp-teachers-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.camp-teachers-header h2 { margin: 0; }
+.camp-teachers-header p { color: var(--text-soft); }
+.camp-teachers-search { display: grid; gap: 8px; margin: 16px 0; }
+.camp-teachers-options { max-height: 320px; overflow-y: auto; }
+.camp-teacher-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.camp-teacher-option input {
+  width: 20px;
+  min-height: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  accent-color: var(--primary);
+}
+.camp-teacher-option span { display: grid; gap: 4px; }
+.camp-teacher-option small { color: var(--text-soft); }
+.camp-teacher-option:has(input:checked) { background: #eef5ff; }
+
+@media (min-width: 861px) {
+  .student-curriculum-modal .student-selection-modal-body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+  .student-curriculum-modal .student-selection-modal-section:last-child {
+    grid-column: 1 / -1;
+  }
+  .student-curriculum-modal .student-selection-modal-section:nth-child(-n + 2) {
+    display: flex;
+    flex-direction: column;
+    height: clamp(240px, calc(100dvh - 340px), 420px);
+  }
+  .student-curriculum-modal .student-selection-modal-section-head,
+  .student-curriculum-modal [data-subject-search] {
+    flex-shrink: 0;
+  }
+  .student-curriculum-modal .student-selection-modal-scroll {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+  }
+  .student-curriculum-modal .student-selection-option-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .template-card-top {
@@ -3527,6 +3661,23 @@ textarea:focus {
   }
 
   .student-selection-option-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .student-selection-modal-panel {
+    padding: 16px;
+  }
+
+  .student-selection-modal-section {
+    padding: 14px;
+  }
+
+  .student-selection-option-button {
+    padding: 10px;
+    font-size: 0.875rem;
+  }
+
+  .student-selection-modal-section-head strong {
+    font-size: 1rem;
   }
 }

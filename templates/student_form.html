@@ -215,7 +215,7 @@
         </section>
 
         <div class="page-actions student-submit-actions">
-          <button type="submit" formaction="/student/draft" formmethod="post" class="secondary-button" {% if is_locked %}disabled{% endif %}>임시 저장</button>
+          <button type="submit" formaction="/student/draft" formmethod="post" formnovalidate class="secondary-button" {% if is_locked %}disabled{% endif %}>임시 저장</button>
           <button type="submit" class="primary-button student" {% if is_locked %}disabled{% endif %}>제출하기</button>
         </div>
         <p class="student-submit-note">* 주기적으로 임시 저장하시기 바랍니다.</p>
