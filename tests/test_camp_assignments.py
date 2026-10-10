@@ -130,6 +130,18 @@ class CampAssignmentTests(unittest.TestCase):
             self.assertEqual(result["headers"]["Location"], "/admin/login")
             self.assertEqual(self.assignments(), [1])
 
+    def test_login_company_footer_is_shared_by_all_roles(self):
+        for role in ("student", "teacher", "admin"):
+            with self.subTest(role=role):
+                page = self.request("/", query=f"role={role}")
+                self.assertEqual(page["status"], "200 OK")
+                self.assertNotIn("같은 데이터 흐름 위에서 협업하는", page["body"])
+                self.assertEqual(page["body"].count('aria-label="사업자 정보"'), 1)
+                self.assertIn("에이페(AFE) 사업자등록번호 : 434-51-00277 TEL : 042-861-8802", page["body"])
+                self.assertIn("주소 : 대전광역시 유성구 어은동 48번길 6 대가빌딩 4층, 5층 AFE", page["body"])
+                self.assertIn("copyright ⓒ 2021 에이페(AFE) ALL RIGHTS RESERVED.", page["body"])
+                self.assertGreater(page["body"].index('aria-label="사업자 정보"'), page["body"].rindex('>이동</button>'))
+
     def test_list_renders_editor_with_no_passwords(self):
         result = self.request("/admin", session=self.admin_session, query="panel=camp-list")
         self.assertEqual(result["status"], "200 OK")

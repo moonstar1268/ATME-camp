@@ -3375,6 +3375,21 @@ textarea:focus {
   min-height: 54px;
 }
 
+.login-company-footer {
+  padding: 20px 24px 24px;
+  border-top: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  line-height: 1.8;
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.login-company-footer p {
+  margin: 0;
+}
+
 .student-start-heading,
 .teacher-home-hero {
   gap: 10px;
