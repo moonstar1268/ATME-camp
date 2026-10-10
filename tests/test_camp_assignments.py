@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.parse import urlencode
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -59,6 +59,8 @@ class CampAssignmentTests(unittest.TestCase):
             )
             self.admin_session = app.create_session(db, role="admin", admin_username="preview")
             self.student_session = app.create_session(db, role="student", program_id=1)
+            self.teacher_session = app.create_session(db, role="teacher", teacher_id=1)
+            self.other_teacher_session = app.create_session(db, role="teacher", teacher_id=2)
 
     def request(self, path, data=None, session=None, query="", method=None):
         body = urlencode(data or {}).encode()
@@ -231,6 +233,101 @@ class CampAssignmentTests(unittest.TestCase):
         page = self.request("/admin", session=self.admin_session, query="panel=prompt-manage")
         self.assertEqual(page["status"], "200 OK")
         self.assertIn("현재 프롬프트 테스트", page["body"])
+
+    def test_anonymous_landing_does_not_wait_for_database(self):
+        with patch.object(app, "APP_READY", False), \
+             patch.object(app, "connect_db", side_effect=AssertionError("Unexpected DB request")), \
+             patch.object(app, "ensure_runtime_ready", side_effect=AssertionError("Unexpected initialization")):
+            page = self.request("/")
+            self.assertEqual(page["status"], "200 OK")
+            self.assertIn('db_queries;desc="0"', page["headers"]["Server-Timing"])
+        signed_in = self.request("/", session=self.teacher_session)
+        self.assertEqual(signed_in["status"], "200 OK")
+        self.assertIn('data-tab-panel="teacher"', signed_in["body"])
+
+    def test_read_mode_never_leaks_into_writes(self):
+        with patch.object(app, "connect_db", wraps=app.connect_db) as connect:
+            self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+            connect.assert_called_once_with(autocommit=True)
+        with patch.object(app, "connect_db", wraps=app.connect_db) as connect:
+            self.update("1,2")
+            connect.assert_called_once_with(autocommit=False)
+        pool = MagicMock()
+        raw = pool.getconn.return_value
+        with patch.object(app, "configured_database_url", return_value="postgresql://test"), \
+             patch.object(app, "get_postgres_pool", return_value=pool), \
+             patch.object(app, "psycopg", object()), \
+             patch.object(app, "dict_row", object()), \
+             patch.object(app, "ConnectionPool", object()):
+            app.connect_db(autocommit=True).close()
+            self.assertIs(raw.autocommit, True)
+            app.connect_db().close()
+            self.assertIs(raw.autocommit, False)
+            self.assertEqual(pool.putconn.call_count, 2)
+
+    def test_assignment_failure_still_rolls_back_entire_update(self):
+        original = app.DBConnection.execute
+        def fail_second_assignment(db, sql, params=()):
+            if "INSERT INTO program_teachers" in sql and params[1] == 3:
+                raise RuntimeError("simulated database failure")
+            return original(db, sql, params)
+        with patch.object(app.DBConnection, "execute", fail_second_assignment):
+            result = self.update("2,3")
+        self.assertEqual(result["status"], "500 Internal Server Error")
+        self.assertEqual(self.assignments(), [1])
+
+    def test_teacher_reads_remain_scoped_and_assignment_changes_are_immediate(self):
+        for path in ("/teacher/programs/1", "/teacher/programs/1/reviews", "/teacher/programs/1/reviews/1"):
+            with self.subTest(path=path):
+                page = self.request(path, session=self.teacher_session)
+                self.assertEqual(page["status"], "200 OK")
+                self.assertIn('db_queries;desc="5"', page["headers"]["Server-Timing"])
+                denied = self.request(path, session=self.other_teacher_session)
+                self.assertEqual(denied["status"], "403 Forbidden")
+        self.update("2")
+        self.assertEqual(self.request("/teacher/programs/1/reviews", session=self.teacher_session)["status"], "403 Forbidden")
+        self.assertEqual(self.request("/teacher/programs/1/reviews", session=self.other_teacher_session)["status"], "200 OK")
+
+    def test_review_list_keeps_drafts_status_and_identity_deduplication(self):
+        with app.connect_db() as db:
+            app.save_student_draft(db, program_id=1, student_name="작성중 학생", student_number="30102",
+                                  desired_major="화학", answers_map={"interest_focus": "화학 실험 주제"})
+            rows = app.get_program_review_rows(db, 1)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["student_number"], "30101")
+            self.assertEqual(rows[0]["status"], "student_submitted")
+            self.assertEqual(rows[1]["student_number"], "30102")
+            self.assertEqual(rows[1]["status"], "draft")
+            self.assertEqual(rows[1]["topic"], "화학 실험 주제")
+            self.assertIsNone(rows[1]["submission_id"])
+
+    def test_dashboard_uses_lightweight_program_query(self):
+        queries = []
+        original = app.DBConnection.execute
+        def track(db, sql, params=()):
+            queries.append(sql)
+            return original(db, sql, params)
+        with patch.object(app.DBConnection, "execute", track):
+            page = self.request("/teacher", session=self.teacher_session)
+        self.assertEqual(page["status"], "200 OK")
+        self.assertIn("TEST2026", page["body"])
+        self.assertEqual(len(queries), 4)
+        program_query = next(sql for sql in queries if "FROM programs p" in sql)
+        self.assertNotIn("p.*", program_query)
+        self.assertNotIn("GROUP BY program_id", program_query)
+
+    def test_submission_does_not_reload_every_students_answers(self):
+        self.request("/student/start", {
+            "student_name": "새로운 학생", "student_number": "30103", "desired_major": "컴퓨터공학"
+        }, self.student_session)
+        with app.connect_db() as db:
+            fields = app.get_program_form_schema(app.get_program_with_teacher(db, 1))["flat_fields"]
+        answers = {field["id"]: "테스트 답변" for field in fields}
+        with patch.object(app, "get_submissions_for_program", side_effect=AssertionError("Bulk load not needed")):
+            page = self.request("/student/submit", answers, self.student_session)
+        self.assertEqual(page["status"], "200 OK")
+        self.assertIn("제출 완료", page["body"])
+        self.assertIn("새로운 학생", page["body"])
 
 
 if __name__ == "__main__":

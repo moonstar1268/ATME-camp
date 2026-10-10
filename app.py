@@ -15,6 +15,7 @@ from http.cookies import SimpleCookie
 from io import BytesIO
 from pathlib import Path
 from threading import Lock
+from time import perf_counter
 from typing import Any
 from urllib.parse import parse_qs, quote
 from urllib.error import HTTPError, URLError
@@ -350,13 +351,20 @@ class DBConnection:
         self.raw = raw
         self.dialect = dialect
         self.releaser = releaser
+        self.query_count = 0
+        self.query_seconds = 0.0
 
     def execute(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> DBCursor:
-        if self.dialect == "postgres":
-            cursor = self.raw.cursor()
-            cursor.execute(adapt_sql_for_postgres(sql), params)
-            return DBCursor(cursor)
-        return DBCursor(self.raw.execute(sql, params))
+        started = perf_counter()
+        self.query_count += 1
+        try:
+            if self.dialect == "postgres":
+                cursor = self.raw.cursor()
+                cursor.execute(adapt_sql_for_postgres(sql), params)
+                return DBCursor(cursor)
+            return DBCursor(self.raw.execute(sql, params))
+        finally:
+            self.query_seconds += perf_counter() - started
 
     def executescript(self, script: str) -> None:
         for statement in split_sql_script(script):
@@ -407,13 +415,20 @@ class DBConnection:
             self.close()
 
 
-def connect_db() -> DBConnection:
+def connect_db(*, autocommit: bool = False) -> DBConnection:
     database_url = configured_database_url()
     if database_url:
         if psycopg is None or dict_row is None or ConnectionPool is None:
             raise RuntimeError("psycopg가 설치되지 않아 Postgres/Supabase에 연결할 수 없습니다.")
         pool = get_postgres_pool()
         conn = pool.getconn()
+        try:
+            # GET pages avoid implicit BEGIN/ROLLBACK network round trips.
+            # Always reset this on checkout so POST writes stay transactional.
+            conn.autocommit = autocommit
+        except Exception:
+            pool.putconn(conn)
+            raise
         return DBConnection(conn, "postgres", releaser=pool.putconn)
 
     conn = sqlite3.connect(DB_PATH)
@@ -2002,21 +2017,23 @@ def attach_program_teacher_metadata_bulk(
     return programs
 
 
-def get_program_with_teacher(db: sqlite3.Connection, program_id: int) -> dict[str, Any] | None:
+def get_program_with_teacher(
+    db: sqlite3.Connection, program_id: int, *, teacher_id: int | None = None,
+) -> dict[str, Any] | None:
+    access_filter = ""
+    params = [program_id]
+    if teacher_id is not None:
+        access_filter = " AND EXISTS (SELECT 1 FROM program_teachers pt WHERE pt.program_id = p.id AND pt.teacher_id = ?)"
+        params.append(teacher_id)
     row = db.execute(
-        """
+        f"""
         SELECT
             p.*,
-            COALESCE(stats.submission_count, 0) AS submission_count
+            (SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id) AS submission_count
         FROM programs p
-        LEFT JOIN (
-            SELECT program_id, COUNT(*) AS submission_count
-            FROM submissions
-            GROUP BY program_id
-        ) stats ON stats.program_id = p.id
-        WHERE p.id = ?
+        WHERE p.id = ?{access_filter}
         """,
-        (program_id,),
+        params,
     ).fetchone()
     if not row:
         return None
@@ -2214,64 +2231,43 @@ def get_program_review_rows(db: sqlite3.Connection, program_id: int) -> list[dic
     rows: list[dict[str, Any]] = []
     existing_keys: set[tuple[str, str]] = set()
 
-    submission_rows = db.execute(
+    entries = db.execute(
         """
         SELECT
-            id,
-            student_name,
-            student_number,
-            desired_major,
-            status,
-            answers_json,
-            teacher_updated_at,
-            student_submitted_at,
-            teacher_selected
+            id, student_name, student_number, desired_major, status, answers_json,
+            COALESCE(NULLIF(teacher_updated_at, ''), student_submitted_at, '') AS updated_at,
+            teacher_selected, 0 AS is_draft
         FROM submissions
         WHERE program_id = ?
-        ORDER BY student_number ASC, student_name ASC
+        UNION ALL
+        SELECT
+            id, student_name, student_number, desired_major, 'draft', answers_json,
+            COALESCE(NULLIF(updated_at, ''), created_at, '') AS updated_at,
+            0 AS teacher_selected, 1 AS is_draft
+        FROM student_drafts
+        WHERE program_id = ?
+        ORDER BY is_draft ASC, student_number ASC, student_name ASC, updated_at DESC
         """,
-        (program_id,),
+        (program_id, program_id),
     ).fetchall()
 
-    for submission in submission_rows:
-        key = (str(submission["student_number"] or "").strip(), str(submission["student_name"] or "").strip())
-        if key != ("", ""):
+    for entry in entries:
+        is_draft = bool(entry["is_draft"])
+        key = (str(entry["student_number"] or "").strip(), str(entry["student_name"] or "").strip())
+        if is_draft and key in existing_keys:
+            continue
+        if not is_draft and key != ("", ""):
             existing_keys.add(key)
         rows.append(
             build_submission_review_meta(
-                student_name=submission["student_name"] or "",
-                student_number=submission["student_number"] or "",
-                desired_major=submission["desired_major"] or "",
-                status=submission["status"] or "student_submitted",
-                answers=parse_json(submission["answers_json"], []),
-                updated_at=submission["teacher_updated_at"] or submission["student_submitted_at"] or "",
-                submission_id=int(submission["id"]),
-                selected_for_submit=bool(submission["teacher_selected"]),
-            )
-        )
-
-    draft_rows = db.execute(
-        """
-        SELECT *
-        FROM student_drafts
-        WHERE program_id = ?
-        ORDER BY updated_at DESC, student_number ASC, student_name ASC
-        """,
-        (program_id,),
-    ).fetchall()
-    for draft in draft_rows:
-        key = (str(draft["student_number"] or "").strip(), str(draft["student_name"] or "").strip())
-        if key in existing_keys:
-            continue
-        rows.append(
-            build_submission_review_meta(
-                student_name=draft["student_name"],
-                student_number=draft["student_number"],
-                desired_major=draft["desired_major"] or "",
-                status="draft",
-                answers=parse_json(draft["answers_json"], {}),
-                updated_at=draft["updated_at"] or draft["created_at"] or "",
-                submission_id=None,
+                student_name=entry["student_name"] or "",
+                student_number=entry["student_number"] or "",
+                desired_major=entry["desired_major"] or "",
+                status="draft" if is_draft else (entry["status"] or "student_submitted"),
+                answers=parse_json(entry["answers_json"], {} if is_draft else []),
+                updated_at=entry["updated_at"],
+                submission_id=None if is_draft else int(entry["id"]),
+                selected_for_submit=bool(entry["teacher_selected"]),
             )
         )
 
@@ -3786,14 +3782,10 @@ def teacher_dashboard(request: Request) -> Response:
     program_rows = request.db.execute(
         """
         SELECT
-            p.*,
-            COALESCE(stats.submission_count, 0) AS submission_count
+            p.id, p.title, p.school_name, p.school_level, p.year, p.semester,
+            p.program_code, p.template_name, p.status,
+            (SELECT COUNT(*) FROM submissions s WHERE s.program_id = p.id) AS submission_count
         FROM programs p
-        LEFT JOIN (
-            SELECT program_id, COUNT(*) AS submission_count
-            FROM submissions
-            GROUP BY program_id
-        ) stats ON stats.program_id = p.id
         WHERE EXISTS (
             SELECT 1 FROM program_teachers pt
             WHERE pt.program_id = p.id AND pt.teacher_id = ?
@@ -3802,7 +3794,7 @@ def teacher_dashboard(request: Request) -> Response:
         """,
         (teacher["id"],),
     ).fetchall()
-    programs = attach_program_teacher_metadata_bulk(request.db, program_rows)
+    programs = [dict(row) for row in program_rows]
     metrics = {
         "assigned_programs": len(programs),
         "open_programs": len([program for program in programs if program["status"] == "collecting"]),
@@ -3857,8 +3849,8 @@ def teacher_program_detail(request: Request, program_id: str) -> Response:
     teacher = get_current_teacher(request)
     if not teacher:
         return redirect_response("/logout")
-    program = get_program_with_teacher(request.db, int(program_id))
-    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
+    program = get_program_with_teacher(request.db, int(program_id), teacher_id=teacher["id"])
+    if not program:
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     review_rows = get_program_review_rows(request.db, int(program_id))
     return render_template(
@@ -3884,8 +3876,8 @@ def teacher_submission_list(request: Request, program_id: str) -> Response:
     teacher = get_current_teacher(request)
     if not teacher:
         return redirect_response("/logout")
-    program = get_program_with_teacher(request.db, int(program_id))
-    if not program or not teacher_has_program_access(request.db, teacher["id"], int(program_id)):
+    program = get_program_with_teacher(request.db, int(program_id), teacher_id=teacher["id"])
+    if not program:
         return text_response("접근 권한이 없습니다.", status="403 Forbidden")
     review_rows = get_program_review_rows(request.db, int(program_id))
     return render_template(
@@ -3912,8 +3904,8 @@ def teacher_submission_detail(request: Request, program_id: str, submission_id: 
         return redirect_response("/logout")
     program_id_int = int(program_id)
     submission_id_int = int(submission_id)
-    program = get_program_with_teacher(request.db, program_id_int)
-    if not program or not teacher_has_program_access(request.db, teacher["id"], program_id_int):
+    program = get_program_with_teacher(request.db, program_id_int, teacher_id=teacher["id"])
+    if not program:
         return text_response("?묎렐 沅뚰븳???놁뒿?덈떎.", status="403 Forbidden")
     submission = get_submission_detail(request.db, program_id_int, submission_id_int)
     if not submission:
@@ -4420,15 +4412,9 @@ def student_submit(request: Request) -> Response:
         student_name=student_name,
         student_number=student_number,
     )
-    saved_submission = None
-    if saved_submission_id and openai_is_configured():
-        normalized_submission = get_submissions_for_program(request.db, int(program["id"]))
-        saved_submission = next((item for item in normalized_submission if item["id"] == saved_submission_id), None)
-        if saved_submission:
-            ensure_ai_suggestion_for_submission(request.db, program, saved_submission, force=True)
-    elif saved_submission_id:
-        normalized_submission = get_submissions_for_program(request.db, int(program["id"]))
-        saved_submission = next((item for item in normalized_submission if item["id"] == saved_submission_id), None)
+    saved_submission = get_submission_detail(request.db, int(program["id"]), saved_submission_id) if saved_submission_id else None
+    if saved_submission and openai_is_configured():
+        ensure_ai_suggestion_for_submission(request.db, program, saved_submission, force=True)
 
     return render_template(
         request,
@@ -4444,6 +4430,8 @@ def health(_: Request) -> Response:
 
 
 def application(environ: dict[str, Any], start_response):
+    started = perf_counter()
+    connection_seconds = 0.0
     db = None
     method = environ.get("REQUEST_METHOD", "GET").upper()
     path = environ.get("PATH_INFO", "/") or "/"
@@ -4457,9 +4445,16 @@ def application(environ: dict[str, Any], start_response):
                 ensure_runtime_ready()
             response = text_response("ok")
         else:
-            if not (path.startswith("/references/") and method == "GET"):
+            cookies = SimpleCookie(environ.get("HTTP_COOKIE", ""))
+            session_cookie = cookies.get(SESSION_COOKIE)
+            public_page = method == "GET" and (
+                path.startswith("/references/") or (path == "/" and not (session_cookie and session_cookie.value))
+            )
+            if not public_page:
                 ensure_runtime_ready()
-                db = connect_db()
+                connecting = perf_counter()
+                db = connect_db(autocommit=method == "GET")
+                connection_seconds = perf_counter() - connecting
             request = Request(environ, db)
             response = None
             for route_method, pattern, handler in ROUTES:
@@ -4490,6 +4485,12 @@ def application(environ: dict[str, Any], start_response):
             db.close()
 
     status, headers, body = response.as_wsgi()
+    headers.append(("Server-Timing", (
+        f"app;dur={(perf_counter() - started) * 1000:.1f}, "
+        f"connection;dur={connection_seconds * 1000:.1f}, "
+        f"db;dur={(db.query_seconds if db else 0) * 1000:.1f}, "
+        f'db_queries;desc="{db.query_count if db else 0}"'
+    )))
     start_response(status, headers)
     return [] if method == "HEAD" else body
 
