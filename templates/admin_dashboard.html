@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}{{ shell.page_title }} | AFE{% endblock %}
+{% block body_class %}{% if active_admin_panel == "teacher-list" %}admin-teacher-list-page{% endif %}{% endblock %}
 
 {% block workspace_actions %}
   <div class="badge-row">
@@ -380,7 +381,7 @@
       </div>
     </section>
   {% elif panel == "teacher-list" %}
-    <section class="page-section admin-panel-page">
+    <section class="page-section admin-panel-page admin-teacher-list-page-section">
       <div class="admin-surface-card admin-list-shell">
         <div class="admin-surface-badge">강사 리스트</div>
         <div class="panel-copy-stack compact-copy">
@@ -394,7 +395,14 @@
           </div>
 
           <div class="table-wrap">
-            <table class="app-table">
+            <table class="app-table teacher-management-table">
+              <colgroup>
+                <col class="teacher-col-name" /><col class="teacher-col-id" />
+                <col class="teacher-col-password" /><col class="teacher-col-code" />
+                <col class="teacher-col-school" /><col class="teacher-col-department" />
+                <col class="teacher-col-assignment" /><col class="teacher-col-unassign" />
+                <col class="teacher-col-delete" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>강사명</th>
@@ -405,7 +413,7 @@
                   <th>학과</th>
                   <th>캠프 배정 현황</th>
                   <th>캠프 배정 취소</th>
-                  <th>강사 삭제</th>
+                  <th class="teacher-delete-column" scope="col">강사 삭제</th>
                 </tr>
               </thead>
               <tbody data-table-body>
@@ -452,7 +460,7 @@
                         <span class="table-muted-action">취소할 배정 없음</span>
                       {% endif %}
                     </td>
-                    <td class="table-action-cell">
+                    <td class="table-action-cell teacher-delete-column">
                       <form action="/admin/teachers/{{ teacher.id }}/delete" method="post" class="inline-action-form">
                         <button type="submit" class="ghost-button-inline delete-mark admin-x-button" aria-label="강사 삭제">×</button>
                       </form>

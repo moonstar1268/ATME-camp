@@ -258,8 +258,9 @@ class Request:
         self.form = self._parse_form()
         self.cookies = SimpleCookie(environ.get("HTTP_COOKIE", ""))
         session_cookie = self.cookies.get(SESSION_COOKIE)
-        self.session = load_session(db, session_cookie.value if session_cookie else None)
-        self.flash = pop_flash(db, self.session["id"]) if self.session else None
+        self.session = load_session(db, session_cookie.value if session_cookie else None) if db else None
+        self.identity_cache: dict[str, Any] = {}
+        self.flash = None
 
     @staticmethod
     def _parse_query(raw_query: str) -> dict[str, str]:
@@ -1434,6 +1435,11 @@ def load_session(db: sqlite3.Connection, session_id: str | None) -> dict[str, An
         return None
     session = dict(row)
     session["context"] = parse_json(row["context_json"], {})
+    # Renew active sessions periodically, not on every page/asset request.
+    if datetime.fromisoformat(session["expires_at"]) < now() + timedelta(hours=SESSION_HOURS, minutes=-15):
+        session["expires_at"] = iso_after_hours(SESSION_HOURS)
+        db.execute("UPDATE sessions SET expires_at = ? WHERE id = ?", (session["expires_at"], session_id))
+        db.commit()
     return session
 
 
@@ -1495,6 +1501,8 @@ def pop_flash(db: sqlite3.Connection, session_id: str) -> dict[str, str] | None:
         return None
     context = parse_json(row["context_json"], {})
     flash = context.pop("_flash", None)
+    if flash is None:
+        return None
     db.execute(
         "UPDATE sessions SET context_json = ?, expires_at = ? WHERE id = ?",
         (json_dump(context), iso_after_hours(SESSION_HOURS), session_id),
@@ -1667,6 +1675,10 @@ def clear_session_cookie_header() -> tuple[str, str]:
 def render_template(request: Request, template_name: str, **context: Any) -> Response:
     shell_overrides = context.pop("shell_overrides", None)
     template = env.get_template(template_name)
+    # Consume notices only when rendering a page, never for assets or redirects.
+    if request.session and request.session["context"].get("_flash"):
+        request.flash = pop_flash(request.db, request.session["id"])
+        request.session["context"].pop("_flash", None)
     base_context = {
         "request": request,
         "flash": request.flash,
@@ -1691,19 +1703,23 @@ def require_role(request: Request, role: str) -> Response | None:
 def get_current_admin(request: Request) -> sqlite3.Row | None:
     if not request.session or request.session["role"] != "admin":
         return None
-    return request.db.execute(
-        "SELECT * FROM admins WHERE username = ?",
-        (request.session["admin_username"],),
-    ).fetchone()
+    if "admin" not in request.identity_cache:
+        request.identity_cache["admin"] = request.db.execute(
+            "SELECT * FROM admins WHERE username = ?",
+            (request.session["admin_username"],),
+        ).fetchone()
+    return request.identity_cache["admin"]
 
 
 def get_current_teacher(request: Request) -> sqlite3.Row | None:
     if not request.session or request.session["role"] != "teacher":
         return None
-    return request.db.execute(
-        "SELECT * FROM teachers WHERE id = ?",
-        (request.session["teacher_id"],),
-    ).fetchone()
+    if "teacher" not in request.identity_cache:
+        request.identity_cache["teacher"] = request.db.execute(
+            "SELECT * FROM teachers WHERE id = ?",
+            (request.session["teacher_id"],),
+        ).fetchone()
+    return request.identity_cache["teacher"]
 
 
 def build_teacher_nav_groups(program_id: int | None = None) -> list[dict[str, Any]]:
@@ -2646,7 +2662,6 @@ def list_program_options(db: sqlite3.Connection) -> list[dict[str, Any]]:
 def build_teacher_management_rows(
     db: sqlite3.Connection,
     teachers: list[sqlite3.Row | dict[str, Any]],
-    program_options: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     assignments = db.execute(
         """
@@ -2672,11 +2687,7 @@ def build_teacher_management_rows(
     for teacher in teachers:
         teacher_item = dict(teacher)
         assigned_programs = assignment_map.get(teacher_item["id"], [])
-        assigned_ids = {program["program_id"] for program in assigned_programs}
         teacher_item["assigned_programs"] = assigned_programs
-        teacher_item["available_programs"] = [
-            program for program in program_options if program["id"] not in assigned_ids
-        ]
         rows.append(teacher_item)
     return rows
 
@@ -2918,7 +2929,7 @@ def reference_proxy_response(path: str) -> Response:
 def serve_static(path: str) -> Response:
     relative = path.removeprefix("/static/").strip("/")
     candidate = (STATIC_DIR / relative).resolve()
-    if not str(candidate).startswith(str(STATIC_DIR.resolve())) or not candidate.exists():
+    if not candidate.is_relative_to(STATIC_DIR.resolve()) or not candidate.is_file():
         return text_response("Not Found", status="404 Not Found")
     content_type, _ = mimetypes.guess_type(candidate.name)
     last_modified = formatdate(candidate.stat().st_mtime, usegmt=True)
@@ -3093,7 +3104,6 @@ def admin_dashboard(request: Request) -> Response:
     admin = get_current_admin(request)
     active_admin_panel = current_admin_panel(request)
     teachers: list[sqlite3.Row] = []
-    program_options: list[dict[str, Any]] = []
     teacher_management_rows: list[dict[str, Any]] = []
     teacher_assignments: list[sqlite3.Row] = []
     templates: list[dict[str, Any]] = []
@@ -3130,8 +3140,7 @@ def admin_dashboard(request: Request) -> Response:
         )
     elif active_admin_panel == "teacher-list":
         teachers = request.db.execute("SELECT * FROM teachers ORDER BY created_at DESC").fetchall()
-        program_options = list_program_options(request.db)
-        teacher_management_rows = build_teacher_management_rows(request.db, teachers, program_options)
+        teacher_management_rows = build_teacher_management_rows(request.db, teachers)
     elif active_admin_panel == "teacher-irregular":
         teacher_assignments = query_teacher_assignments(request.db)
     elif active_admin_panel in {"template-create", "template-manage"}:
@@ -3144,14 +3153,13 @@ def admin_dashboard(request: Request) -> Response:
         active_admin_panel=active_admin_panel,
         teachers=teachers,
         teacher_management_rows=teacher_management_rows,
-        program_options=program_options,
         teacher_assignments=teacher_assignments,
         templates=templates,
         camp_programs=camp_programs,
         school_levels=SCHOOL_LEVEL_OPTIONS,
         semesters=SEMESTER_OPTIONS,
         default_prompt_text=EVALUATION_EXAMPLE_PROMPT.strip(),
-        teacher_generation_prompt=get_teacher_generation_prompt(request.db),
+        teacher_generation_prompt=get_teacher_generation_prompt(request.db) if active_admin_panel == "prompt-manage" else "",
     )
 
 
@@ -4436,16 +4444,26 @@ def health(_: Request) -> Response:
 
 
 def application(environ: dict[str, Any], start_response):
-    ensure_runtime_ready()
-    db = connect_db()
-    request = Request(environ, db)
+    db = None
+    method = environ.get("REQUEST_METHOD", "GET").upper()
+    path = environ.get("PATH_INFO", "/") or "/"
     try:
-        if request.path.startswith("/static/"):
-            response = serve_static(request.path)
+        # Public assets and reference data must not borrow a database connection
+        # or consume a login session while a page is loading.
+        if path.startswith("/static/") and method in {"GET", "HEAD"}:
+            response = serve_static(path)
+        elif path == "/health" and method in {"GET", "HEAD"}:
+            if not APP_READY:
+                ensure_runtime_ready()
+            response = text_response("ok")
         else:
+            if not (path.startswith("/references/") and method == "GET"):
+                ensure_runtime_ready()
+                db = connect_db()
+            request = Request(environ, db)
             response = None
-            for method, pattern, handler in ROUTES:
-                if method != request.method:
+            for route_method, pattern, handler in ROUTES:
+                if route_method != request.method:
                     continue
                 match = pattern.match(request.path)
                 if match:
@@ -4468,11 +4486,12 @@ def application(environ: dict[str, Any], start_response):
             status="500 Internal Server Error",
         )
     finally:
-        db.close()
+        if db is not None:
+            db.close()
 
     status, headers, body = response.as_wsgi()
     start_response(status, headers)
-    return body
+    return [] if method == "HEAD" else body
 
 
 def main() -> None:

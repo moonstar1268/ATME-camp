@@ -60,10 +60,10 @@ class CampAssignmentTests(unittest.TestCase):
             self.admin_session = app.create_session(db, role="admin", admin_username="preview")
             self.student_session = app.create_session(db, role="student", program_id=1)
 
-    def request(self, path, data=None, session=None, query=""):
+    def request(self, path, data=None, session=None, query="", method=None):
         body = urlencode(data or {}).encode()
         environ = {
-            "REQUEST_METHOD": "POST" if data is not None else "GET",
+            "REQUEST_METHOD": method or ("POST" if data is not None else "GET"),
             "PATH_INFO": path, "QUERY_STRING": query,
             "CONTENT_LENGTH": str(len(body)), "wsgi.input": io.BytesIO(body),
             "HTTP_COOKIE": f"{app.SESSION_COOKIE}={session or ''}",
@@ -152,6 +152,73 @@ class CampAssignmentTests(unittest.TestCase):
         restored = self.request("/student", session=self.student_session)
         self.assertIn("통합사회1", restored["body"])
         self.assertIn("문화와 다양성 - 문화 상대주의", restored["body"])
+
+    def test_teacher_list_uses_four_reads_and_no_session_writes(self):
+        queries = []
+        original_execute = app.DBConnection.execute
+        def track(db, sql, params=()):
+            queries.append(sql.strip())
+            return original_execute(db, sql, params)
+        with patch.object(app.DBConnection, "execute", track):
+            result = self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        self.assertEqual(result["status"], "200 OK")
+        self.assertEqual(len(queries), 4, queries)
+        self.assertTrue(all(sql.startswith("SELECT") for sql in queries), queries)
+        self.assertIn("teacher-management-table", result["body"])
+        self.assertIn('scope="col">강사 삭제', result["body"])
+
+    def test_assets_health_and_reference_data_do_not_connect_to_database(self):
+        with patch.object(app, "connect_db", side_effect=AssertionError("Unexpected DB request")), \
+             patch.object(app, "ensure_runtime_ready", side_effect=AssertionError("Unexpected initialization")), \
+             patch.object(app, "fetch_reference_api_payload", return_value={"data": []}):
+            for path in ("/static/app.css", "/static/app.js", "/health", "/references/curricula"):
+                with self.subTest(path=path):
+                    result = self.request(path, session=self.admin_session)
+                    self.assertEqual(result["status"], "200 OK")
+            self.assertEqual(self.request("/health", method="HEAD")["body"], "")
+            self.assertEqual(self.request("/static/app.css", method="HEAD")["body"], "")
+            self.assertEqual(self.request("/static/../app.py")["status"], "404 Not Found")
+
+    def test_flash_survives_assets_references_and_redirects(self):
+        with app.connect_db() as db:
+            app.set_flash(db, self.admin_session, "배정이 변경되었습니다.", "success")
+        self.request("/static/app.css", session=self.admin_session)
+        self.request("/health", session=self.admin_session)
+        with patch.object(app, "fetch_reference_api_payload", return_value={"data": []}):
+            self.request("/references/curricula", session=self.admin_session)
+        self.request("/admin/login", session=self.admin_session)
+        page = self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        self.assertIn("배정이 변경되었습니다.", page["body"])
+        next_page = self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        self.assertNotIn("배정이 변경되었습니다.", next_page["body"])
+
+    def test_session_renewal_preserves_context_and_revocation_is_immediate(self):
+        old_expiry = (app.now() + app.timedelta(hours=11)).isoformat()
+        with app.connect_db() as db:
+            db.execute("UPDATE sessions SET expires_at=?, context_json=? WHERE id=?",
+                       (old_expiry, '{"keep":"value"}', self.admin_session))
+        self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        with app.connect_db() as db:
+            renewed = db.execute("SELECT * FROM sessions WHERE id=?", (self.admin_session,)).fetchone()
+            self.assertGreater(renewed["expires_at"], old_expiry)
+            self.assertEqual(app.parse_json(renewed["context_json"], {}), {"keep": "value"})
+            app.destroy_session(db, self.admin_session)
+        denied = self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        self.assertEqual(denied["headers"]["Location"], "/admin/login")
+
+    def test_expired_session_is_not_renewed(self):
+        with app.connect_db() as db:
+            db.execute("UPDATE sessions SET expires_at=? WHERE id=?",
+                       ((app.now() - app.timedelta(minutes=1)).isoformat(), self.admin_session))
+        result = self.request("/admin", session=self.admin_session, query="panel=teacher-list")
+        self.assertEqual(result["headers"]["Location"], "/admin/login")
+
+    def test_prompt_manager_still_loads_current_prompt(self):
+        with app.connect_db() as db:
+            app.set_meta_value(db, "teacher_generation_prompt", "현재 프롬프트 테스트")
+        page = self.request("/admin", session=self.admin_session, query="panel=prompt-manage")
+        self.assertEqual(page["status"], "200 OK")
+        self.assertIn("현재 프롬프트 테스트", page["body"])
 
 
 if __name__ == "__main__":

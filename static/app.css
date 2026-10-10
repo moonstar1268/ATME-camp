@@ -2942,6 +2942,82 @@ body {
   max-width: 1280px;
 }
 
+.admin-teacher-list-page-section {
+  max-width: none;
+}
+
+.admin-teacher-list-page .workspace-content {
+  padding-inline: 20px;
+}
+
+.admin-teacher-list-page .admin-list-shell {
+  padding: 20px;
+}
+
+.teacher-management-table {
+  table-layout: fixed;
+}
+
+.teacher-management-table .teacher-col-name { width: 8%; }
+.teacher-management-table .teacher-col-id { width: 9%; }
+.teacher-management-table .teacher-col-password { width: 10%; }
+.teacher-management-table .teacher-col-code { width: 10%; }
+.teacher-management-table .teacher-col-school { width: 11%; }
+.teacher-management-table .teacher-col-department { width: 10%; }
+.teacher-management-table .teacher-col-assignment { width: 20%; }
+.teacher-management-table .teacher-col-unassign { width: 13%; }
+.teacher-management-table .teacher-col-delete { width: 9%; }
+
+.app-table.teacher-management-table {
+  min-width: 920px;
+}
+
+.app-table.teacher-management-table thead th,
+.app-table.teacher-management-table tbody td {
+  padding: 14px 10px;
+  overflow-wrap: anywhere;
+}
+
+.teacher-management-table td code {
+  font-size: 0.82rem;
+}
+
+.teacher-management-table .table-assignment-stack,
+.teacher-management-table .assignment-chip-main {
+  min-width: 0;
+}
+
+.teacher-management-table .assignment-chip {
+  padding: 8px;
+  gap: 6px;
+}
+
+.teacher-management-table .table-assignment-action {
+  flex-wrap: wrap;
+}
+
+/* Keep the destructive action discoverable even on a narrow, scrollable table. */
+.teacher-management-table .teacher-delete-column {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background: #ffffff;
+  border-left: 1px solid var(--border);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.teacher-management-table thead .teacher-delete-column {
+  z-index: 3;
+  background: #f8fbff;
+}
+
+@media (min-width: 1181px) {
+  .admin-teacher-list-page .dashboard-shell {
+    grid-template-columns: 256px minmax(0, 1fr);
+  }
+}
+
 .panel-copy-stack {
   display: grid;
   gap: 8px;
